@@ -1,0 +1,21 @@
+api:
+  allowed_origins: ${ALLOWED_ORIGINS:-http://localhost:8000}
+
+database:
+  url: ${DATABASE_URL:-postgresql+asyncpg://qna:qna@localhost:5432/qna}
+  data_dir: ${PROJECT_ROOT}/data
+
+logging:
+  level: ${LOG_LEVEL:-info}
+  rich_tracebacks: true
+  show_time: true
+  show_level: true
+  show_path: false
+
+mlflow:
+  enabled: ${MLFLOW_ENABLED:-false}
+  tracking_uri: ${MLFLOW_TRACKING_URL:-http://localhost:5000}
+  experiment: qna
+  autolog:
+    langchain:
+      enabled: true

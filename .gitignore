@@ -1,0 +1,14 @@
+**.ipynb
+
+__pycache__/
+.pytest_cache/
+*.egg-info/
+
+venv/
+.venv/
+
+logs/
+
+data/
+docs/
+.env
