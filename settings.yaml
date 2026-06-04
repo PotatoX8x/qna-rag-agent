@@ -1,8 +1,69 @@
+defaults:
+  llm:
+    llm_openai: &llm_openai
+      provider: openai
+      model: ${OPENAI_MODEL_ANALYSIS:-gpt-5.4-2026-03-05}
+      model_fast: ${OPENAI_MODEL_FAST:-gpt-5.4-mini-2026-03-17}
+      api_key: ${OPENAI_API_KEY}
+      timeout: 30
+      max_retries: 2
+
+  embedding:
+    embedding_sentence_transformers: &embedding_sentence_transformers
+      provider: sentence_transformers
+      model: all-MiniLM-L6-v2
+
+    embedding_openai: &embedding_openai
+      provider: openai
+      model: text-embedding-3-small
+      api_key: ${OPENAI_API_KEY}
+
+  vectorstore:
+    vectorstore_pgvector: &vectorstore_pgvector
+      provider: pgvector
+
+    vectorstore_chromadb: &vectorstore_chromadb
+      provider: chromadb
+      persist_dir: ${PROJECT_ROOT}/data/chroma
+
+  retriever:
+    # score_normalization: none | minmax | scale | softmax | log
+    retriever_vectorstore: &retriever_vectorstore
+      provider: vectorstore
+      top_k: 5
+      score_normalization: minmax
+
+    retriever_bm25: &retriever_bm25
+      provider: bm25
+      top_k: 5
+      score_normalization: minmax
+
+    retriever_ensemble: &retriever_ensemble
+      provider: ensemble
+      candidate_k: 20
+      rrf_k: 60
+      top_k: 5
+      score_normalization: minmax
+      rerank: false
+
+# App Settings
 api:
   allowed_origins: ${ALLOWED_ORIGINS:-http://localhost:8000}
 
+models:
+  llm:
+    <<: *llm_openai
+  embeddings:
+    <<: *embedding_sentence_transformers
+
+vectorstore:
+  <<: *vectorstore_pgvector
+
+retrieval:
+  <<: *retriever_ensemble
+
 database:
-  url: ${DATABASE_URL:-postgresql+asyncpg://qna:qna@localhost:5432/qna}
+  url: ${DATABASE_URL}
   data_dir: ${PROJECT_ROOT}/data
 
 logging:

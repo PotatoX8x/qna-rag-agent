@@ -5,19 +5,25 @@ from pathlib import Path
 from app.core.config import load_config
 from app.core.logging import setup_logging
 from app.core.observability import setup_observability
+from app.models.embedding_client import EmbeddingRegistry
+from app.models.embedding_client.base import BaseEmbeddingClient
+from app.models.llm_client import LLMRegistry
+from app.models.llm_client.base import BaseLLMClient
 
 
 @dataclass
 class AppServices:
     config: dict
+    llm: BaseLLMClient
+    embeddings: BaseEmbeddingClient
 
 
 class ServiceContainer:
     """Composition root. Builds the shared services once and hands out the same instance.
 
-    Later phases extend ``AppServices`` with the database session factory, LLM and
-    embedding clients, vector store and web search — all constructed here so the rest
-    of the app depends on instances rather than wiring its own.
+    Later phases extend ``AppServices`` with the database session factory and web
+    search — all constructed here so the rest of the app depends on instances rather
+    than wiring its own.
     """
 
     _instance: AppServices | None = None
@@ -39,7 +45,10 @@ class ServiceContainer:
 
         Path(config["database"]["data_dir"]).mkdir(parents=True, exist_ok=True)
 
-        return AppServices(config=config)
+        llm = LLMRegistry.create(config["models"]["llm"])
+        embeddings = EmbeddingRegistry.create(config["models"]["embeddings"])
+
+        return AppServices(config=config, llm=llm, embeddings=embeddings)
 
     @classmethod
     def reset(cls) -> None:
