@@ -1,6 +1,7 @@
 from app.models.embedding_client.base import BaseEmbeddingClient
 from app.similarity_search.vectorstore.base import BaseVectorStore
 from app.similarity_search.vectorstore.stores.chromadb import ChromaDBVectorStore
+from app.similarity_search.vectorstore.stores.pgvector import PgVectorStore
 
 
 class VectorStoreRegistry:
@@ -8,6 +9,7 @@ class VectorStoreRegistry:
 
     _stores: dict[str, type[BaseVectorStore]] = {
         "chromadb": ChromaDBVectorStore,
+        "pgvector": PgVectorStore,
     }
 
     @classmethod

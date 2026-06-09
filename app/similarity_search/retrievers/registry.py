@@ -1,6 +1,7 @@
 from app.similarity_search.retrievers.base import BaseRetriever
 from app.similarity_search.retrievers.providers.bm25 import BM25Retriever
 from app.similarity_search.retrievers.providers.ensemble import EnsembleRetriever
+from app.similarity_search.retrievers.providers.postgres_fts import PostgresFTSRetriever
 from app.similarity_search.retrievers.providers.vectorstore import VectorStoreRetriever
 from app.similarity_search.vectorstore.base import BaseVectorStore
 
@@ -12,6 +13,7 @@ class RetrieverRegistry:
         "bm25": BM25Retriever,
         "vectorstore": VectorStoreRetriever,
         "ensemble": EnsembleRetriever,
+        "postgres_fts": PostgresFTSRetriever,
     }
 
     @classmethod

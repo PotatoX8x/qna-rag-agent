@@ -1,5 +1,6 @@
 from app.similarity_search.filters.base import BaseFilterBuilder
 from app.similarity_search.filters.builders.chromadb import ChromaFilterBuilder
+from app.similarity_search.filters.builders.pgvector import PgVectorFilterBuilder
 
 
 class FilterBuilderRegistry:
@@ -7,6 +8,7 @@ class FilterBuilderRegistry:
 
     _builders: dict[str, type[BaseFilterBuilder]] = {
         "chromadb": ChromaFilterBuilder,
+        "pgvector": PgVectorFilterBuilder,
     }
 
     @classmethod

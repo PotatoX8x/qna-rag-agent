@@ -21,6 +21,7 @@ defaults:
   vectorstore:
     vectorstore_pgvector: &vectorstore_pgvector
       provider: pgvector
+      url: ${DATABASE_URL}
 
     vectorstore_chromadb: &vectorstore_chromadb
       provider: chromadb
@@ -38,6 +39,7 @@ defaults:
       top_k: 5
       score_normalization: minmax
 
+    # Primary: pgvector store + postgres FTS lexical arm
     retriever_ensemble: &retriever_ensemble
       provider: ensemble
       candidate_k: 20
@@ -45,8 +47,20 @@ defaults:
       top_k: 5
       score_normalization: minmax
       rerank: false
+      lexical_provider: postgres_fts
+      url: ${DATABASE_URL}
 
-# App Settings
+    # Alternative: chromadb store + BM25 lexical arm
+    retriever_ensemble_bm25: &retriever_ensemble_bm25
+      provider: ensemble
+      candidate_k: 20
+      rrf_k: 60
+      top_k: 5
+      score_normalization: minmax
+      rerank: false
+      lexical_provider: bm25
+
+# App settings
 api:
   allowed_origins: ${ALLOWED_ORIGINS:-http://localhost:8000}
 

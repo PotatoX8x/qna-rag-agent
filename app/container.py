@@ -2,9 +2,12 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+
 from app.core.config import load_config
 from app.core.logging import setup_logging
 from app.core.observability import setup_observability
+from app.db.engine import create_engine_and_session
 from app.models.embedding_client import EmbeddingRegistry
 from app.models.embedding_client.base import BaseEmbeddingClient
 from app.models.llm_client import LLMRegistry
@@ -16,14 +19,14 @@ class AppServices:
     config: dict
     llm: BaseLLMClient
     embeddings: BaseEmbeddingClient
+    engine: AsyncEngine
+    session_factory: async_sessionmaker[AsyncSession]
 
 
 class ServiceContainer:
-    """Composition root. Builds the shared services once and hands out the same instance.
+    """Composition root. Builds shared services once; hands out the same instance.
 
-    Later phases extend ``AppServices`` with the database session factory and web
-    search — all constructed here so the rest of the app depends on instances rather
-    than wiring its own.
+    Extended in later phases with vector store and web search.
     """
 
     _instance: AppServices | None = None
@@ -47,8 +50,15 @@ class ServiceContainer:
 
         llm = LLMRegistry.create(config["models"]["llm"])
         embeddings = EmbeddingRegistry.create(config["models"]["embeddings"])
+        engine, session_factory = create_engine_and_session(config["database"]["url"])
 
-        return AppServices(config=config, llm=llm, embeddings=embeddings)
+        return AppServices(
+            config=config,
+            llm=llm,
+            embeddings=embeddings,
+            engine=engine,
+            session_factory=session_factory,
+        )
 
     @classmethod
     def reset(cls) -> None:
