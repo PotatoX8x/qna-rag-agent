@@ -76,6 +76,9 @@ vectorstore:
 retrieval:
   <<: *retriever_ensemble
 
+auth:
+  jwt_secret: ${JWT_SECRET}
+
 database:
   url: ${DATABASE_URL}
   data_dir: ${PROJECT_ROOT}/data

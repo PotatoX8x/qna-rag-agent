@@ -9,7 +9,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.api.limiter import limiter
-from app.api.routers import health
+from app.api.routers import health, auth, knowledge_bases
 from app.container import ServiceContainer
 from app.core.paths import detect_project_root
 
@@ -54,6 +54,8 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
     app.include_router(health.router, prefix="/api")
+    app.include_router(auth.router, prefix="/api")
+    app.include_router(knowledge_bases.router, prefix="/api")
 
     web_dir = detect_project_root() / "web"
     if (web_dir / "assets").is_dir():
