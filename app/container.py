@@ -24,10 +24,6 @@ class AppServices:
 
 
 class ServiceContainer:
-    """Composition root. Builds shared services once; hands out the same instance.
-
-    Extended in later phases with vector store and web search.
-    """
 
     _instance: AppServices | None = None
     _lock = threading.Lock()

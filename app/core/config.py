@@ -13,8 +13,18 @@ def _expand(raw: str) -> str:
     """Resolve ``${VAR}`` and ``${VAR:-default}`` placeholders against the environment.
 
     A set, non-empty variable wins; otherwise the inline default is used. A bare
-    ``${VAR}`` with no default and no value is left untouched so it surfaces as a
+    ``${VAR}`` with no default and no env value is left untouched so it surfaces as a
     visible error at first use rather than silently resolving to empty.
+
+    Parameters
+    ----------
+    raw : str
+        Raw YAML string potentially containing ``${...}`` placeholders.
+
+    Returns
+    -------
+    str
+        String with all resolvable placeholders substituted.
     """
 
     def replace(match: re.Match) -> str:
@@ -30,6 +40,16 @@ def _expand(raw: str) -> str:
 
 
 def load_config() -> dict:
+    """Load, expand, and parse ``settings.yaml`` from the project root.
+
+    Sets the ``PROJECT_ROOT`` environment variable as a side effect so YAML
+    placeholders that reference it resolve correctly.
+
+    Returns
+    -------
+    dict
+        Fully resolved configuration tree.
+    """
     root = detect_project_root()
     os.environ.setdefault("PROJECT_ROOT", str(root))
     load_dotenv(root / ".env")

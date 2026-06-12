@@ -4,9 +4,24 @@ from app.similarity_search.filters.base import BaseFilterBuilder
 
 
 class ChromaFilterBuilder(BaseFilterBuilder):
-    """Builds Chroma ``where`` clauses. List values become disjunctive matches."""
+    """Translates neutral ``{field: value}`` filters to Chroma ``where`` clause dicts."""
 
     def build(self, filter_params: dict[str, Any]) -> Optional[dict[str, Any]]:
+        """Build a Chroma-compatible ``where`` dict from a neutral filter map.
+
+        List values are expanded to ``$or`` disjunctions. Multiple keys are wrapped
+        in ``$and``. A single equality condition is returned unwrapped.
+
+        Parameters
+        ----------
+        filter_params : dict[str, Any]
+            Neutral filter where values are scalars or lists of scalars.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Chroma ``where`` clause, or ``None`` when the input is empty.
+        """
         if not filter_params:
             return None
 
