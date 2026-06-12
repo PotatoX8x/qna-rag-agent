@@ -11,16 +11,60 @@ _STOPWORDS = {
 
 
 def _tokenize(text: str) -> list[str]:
+    """Lowercase, extract word tokens, and remove stopwords.
+
+    Parameters
+    ----------
+    text : str
+        Raw text to tokenise.
+
+    Returns
+    -------
+    list[str]
+        Filtered word tokens.
+    """
     return [tok for tok in _WORD.findall(text.lower()) if tok not in _STOPWORDS]
 
 
 class BM25Retriever(BaseRetriever):
-    """Lexical retrieval over the collection's documents using Okapi BM25."""
+    """Lexical retrieval over the full collection using Okapi BM25."""
 
     def __init__(self, vectorstore_client: BaseVectorStore, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        vectorstore_client : BaseVectorStore
+            Store whose ``get_collection`` method supplies the corpus.
+        **kwargs
+            Unused; absorbed so the retriever registry can pass arbitrary config.
+        """
         self.vectorstore_client = vectorstore_client
 
-    def retrieve(self, query, top_k=5, score_normalization=None, metadata_filter=None) -> ScoredDocs:
+    def retrieve(
+        self,
+        query: str,
+        top_k: int = 5,
+        score_normalization: str | None = None,
+        metadata_filter: dict | None = None,
+    ) -> ScoredDocs:
+        """Rank collection documents against the query with BM25 and return the top-k.
+
+        Parameters
+        ----------
+        query : str
+            User query string.
+        top_k : int, optional
+            Maximum number of results to return. Default is 5.
+        score_normalization : str or None, optional
+            Normalisation method to apply after scoring (``minmax``, ``softmax``, etc.).
+        metadata_filter : dict or None, optional
+            Passed through to ``vectorstore_client.get_collection`` to pre-filter the corpus.
+
+        Returns
+        -------
+        ScoredDocs
+            List of ``(Document, score)`` pairs, highest score first.
+        """
         from rank_bm25 import BM25Okapi
 
         documents = self.vectorstore_client.get_collection(metadata_filter=metadata_filter)

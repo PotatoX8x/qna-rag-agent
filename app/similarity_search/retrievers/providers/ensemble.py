@@ -5,12 +5,7 @@ from app.similarity_search.vectorstore.base import BaseVectorStore
 
 
 class EnsembleRetriever(BaseRetriever):
-    """Fuses dense and lexical results with Reciprocal Rank Fusion and deduplicates.
-
-    lexical_provider: "bm25" (default, works with any store) or
-                      "postgres_fts" (uses Postgres tsvector; requires a PgVectorStore
-                      or an explicit 'url' kwarg in the retrieval config).
-    """
+    """Fuses dense and lexical results with Reciprocal Rank Fusion."""
 
     def __init__(
         self,
@@ -20,6 +15,22 @@ class EnsembleRetriever(BaseRetriever):
         lexical_provider: str = "bm25",
         **kwargs,
     ) -> None:
+        """
+        Parameters
+        ----------
+        vectorstore_client : BaseVectorStore
+            Backing store used by both sub-retrievers.
+        candidate_k : int, optional
+            Number of candidates each sub-retriever fetches before fusion. Default is 20.
+        rrf_k : int, optional
+            RRF rank-smoothing constant. Default is 60.
+        lexical_provider : str, optional
+            ``"bm25"`` (default) or ``"postgres_fts"``. When ``"postgres_fts"``,
+            the store's ``conninfo`` attribute or a ``url`` kwarg must be present.
+        **kwargs
+            Forwarded to the lexical retriever; ``url`` is consumed when
+            ``lexical_provider="postgres_fts"``.
+        """
         from app.similarity_search.retrievers.providers.vectorstore import VectorStoreRetriever
 
         self.dense_retriever = VectorStoreRetriever(vectorstore_client)
@@ -39,9 +50,45 @@ class EnsembleRetriever(BaseRetriever):
             self.lexical_retriever = BM25Retriever(vectorstore_client)
 
     def _rrf(self, rank: int) -> float:
+        """Compute the RRF score for a single rank position.
+
+        Parameters
+        ----------
+        rank : int
+            1-based rank of the document in one retriever's result list.
+
+        Returns
+        -------
+        float
+            ``1 / (rrf_k + rank)``.
+        """
         return 1 / (self.rrf_k + rank)
 
-    def retrieve(self, query, top_k=5, score_normalization=None, metadata_filter=None) -> ScoredDocs:
+    def retrieve(
+        self,
+        query: str,
+        top_k: int = 5,
+        score_normalization: str | None = None,
+        metadata_filter: dict | None = None,
+    ) -> ScoredDocs:
+        """Retrieve and fuse results from dense and lexical arms via RRF.
+
+        Parameters
+        ----------
+        query : str
+            User query string.
+        top_k : int, optional
+            Final number of results to return after fusion. Default is 5.
+        score_normalization : str or None, optional
+            Normalisation method applied to the fused scores.
+        metadata_filter : dict or None, optional
+            Passed through to both sub-retrievers.
+
+        Returns
+        -------
+        ScoredDocs
+            Deduplicated, fused, and optionally normalised result list.
+        """
         dense = self.dense_retriever.retrieve(query, top_k=self.candidate_k, metadata_filter=metadata_filter)
         lexical = self.lexical_retriever.retrieve(query, top_k=self.candidate_k, metadata_filter=metadata_filter)
 
