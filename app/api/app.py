@@ -9,7 +9,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.api.limiter import limiter
-from app.api.routers import health, auth, knowledge_bases, documents
+from app.api.routers import health, auth, knowledge_bases, documents, conversations
 from app.container import ServiceContainer
 from app.core.paths import detect_project_root
 
@@ -18,13 +18,25 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.services = ServiceContainer.get_instance()
+    services = ServiceContainer.get_instance()
+    app.state.services = services
+
+    from app.agent.graph import build_graph
+    app.state.agent_graph = build_graph(services)
+
     logger.info("Services initialized")
     yield
     logger.info("Shutdown complete")
 
 
 def create_app() -> FastAPI:
+    """Construct and configure the FastAPI application.
+
+    Returns
+    -------
+    FastAPI
+        Fully configured application instance.
+    """
     app = FastAPI(
         title="QnA RAG Agent",
         version="0.1.0",
@@ -57,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api")
     app.include_router(knowledge_bases.router, prefix="/api")
     app.include_router(documents.router, prefix="/api")
+    app.include_router(conversations.router, prefix="/api")
 
     web_dir = detect_project_root() / "web"
     if (web_dir / "assets").is_dir():
