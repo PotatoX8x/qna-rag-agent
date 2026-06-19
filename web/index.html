@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QnA RAG Agent — Sign in</title>
+  <link rel="stylesheet" href="/assets/css/base.css" />
+  <link rel="stylesheet" href="/assets/css/auth.css" />
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+      <h1 class="auth-title">QnA RAG Agent</h1>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-form="login-form">Sign in</button>
+        <button class="auth-tab"        data-form="register-form">Register</button>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <div class="form-group">
+          <label for="login-email">Email</label>
+          <input id="login-email" name="email" type="email"
+                 required autocomplete="email" placeholder="you@example.com" />
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input id="login-password" name="password" type="password"
+                 required autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn-primary">Sign in</button>
+      </form>
+
+      <form id="register-form" class="auth-form hidden">
+        <div class="form-group">
+          <label for="reg-email">Email</label>
+          <input id="reg-email" name="email" type="email"
+                 required autocomplete="email" placeholder="you@example.com" />
+        </div>
+        <div class="form-group">
+          <label for="reg-password">Password</label>
+          <input id="reg-password" name="password" type="password"
+                 required autocomplete="new-password" />
+        </div>
+        <button type="submit" class="btn-primary">Create account</button>
+      </form>
+
+      <p id="auth-error" class="auth-error"></p>
+    </div>
+  </div>
+
+  <script type="module" src="/assets/js/auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QnA RAG Agent</title>
+  <link rel="stylesheet" href="/assets/css/base.css" />
+  <link rel="stylesheet" href="/assets/css/app.css" />
+</head>
+<body>
+  <div class="app-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">QnA RAG Agent</div>
+        <select id="kb-select" class="kb-select"></select>
+        <button id="btn-new-conv" class="btn-new-conv" disabled>+ New conversation</button>
+      </div>
+
+      <div id="conv-list" class="sidebar-conversations"></div>
+
+      <div class="sidebar-footer">
+        <span id="user-label" class="sidebar-user"></span>
+        <button id="btn-logout" class="btn-logout">Sign out</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div id="main-header" class="main-header"></div>
+
+      <div id="empty-state" class="empty-state">
+        <span class="empty-state-icon">💬</span>
+        <span class="empty-state-text">No conversation selected</span>
+        <span class="empty-state-hint">Pick a knowledge base and start a new conversation.</span>
+      </div>
+
+      <div id="thread" class="thread" style="display: none;"></div>
+
+      <div id="input-bar" class="input-bar" style="display: none;">
+        <textarea id="chat-input" rows="1"
+          placeholder="Ask a question… (Enter to send, Shift+Enter for new line)"></textarea>
+        <button id="btn-send" class="btn-send">Send</button>
+      </div>
+    </main>
+
+  </div>
+
+  <script type="module" src="/assets/js/chat.js"></script>
+</body>
+</html>

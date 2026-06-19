@@ -1,0 +1,54 @@
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --primary: #4f6ef7;
+  --primary-hover: #3b5bdb;
+  --text: #1a202c;
+  --text-muted: #6b7280;
+  --error: #e53e3e;
+  --radius: 8px;
+  --sidebar-bg: #1e2235;
+  --sidebar-text: #9aa5b8;
+  --sidebar-hover-bg: #252940;
+  --sidebar-active-bg: #2d3450;
+  --sidebar-active-text: #ffffff;
+  --user-bubble-bg: #4f6ef7;
+  --user-bubble-text: #ffffff;
+  --assistant-bubble-bg: #ffffff;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.5;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+input, textarea {
+  font-family: inherit;
+  font-size: 14px;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}

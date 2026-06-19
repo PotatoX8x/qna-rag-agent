@@ -82,6 +82,13 @@ def create_app() -> FastAPI:
             return FileResponse(index_html)
         return JSONResponse({"service": "qna-rag-agent", "status": "ok"})
 
+    @app.get("/app", include_in_schema=False)
+    async def app_page():
+        app_html = web_dir / "app.html"
+        if app_html.exists():
+            return FileResponse(app_html)
+        return JSONResponse({"service": "qna-rag-agent", "status": "ok"})
+
     return app
 
 
