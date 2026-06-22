@@ -11,6 +11,7 @@ from slowapi.errors import RateLimitExceeded
 from app.api.limiter import limiter
 from app.api.routers import health, auth, knowledge_bases, documents, conversations
 from app.container import ServiceContainer
+from app.core.observability import setup_observability
 from app.core.paths import detect_project_root
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     services = ServiceContainer.get_instance()
     app.state.services = services
+
+    setup_observability(services.config)
 
     from app.agent.graph import build_graph
     app.state.agent_graph = build_graph(services)

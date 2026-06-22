@@ -17,3 +17,4 @@ class AgentState(TypedDict):
     needs_web_search: bool
     generation_count: int
     hallucination_detected: bool
+    retrieved_count: int

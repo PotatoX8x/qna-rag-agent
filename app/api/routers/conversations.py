@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import uuid
 from typing import Annotated
 
@@ -19,6 +20,7 @@ from app.api.schemas.conversation import (
     ConversationRead,
 )
 from app.agent.state import AgentState
+from app.core.observability import agent_run_context, log_turn_metrics, open_conversation_run
 from app.db.orm.conversation import Conversation
 from app.db.orm.knowledge_base import KnowledgeBase
 from app.db.orm.message import Message, MessageCitation, MessageRole
@@ -194,6 +196,19 @@ async def chat(
         for m in history_result.scalars().all()
     ]
 
+    turn_index = len(history) // 2
+
+    if conv.mlflow_run_id is None:
+        run_id = open_conversation_run(
+            conversation_id=str(conv.id),
+            kb_id=str(conv.kb_id) if conv.kb_id else None,
+            title=conv.title,
+        )
+        if run_id:
+            conv.mlflow_run_id = run_id
+            await db.commit()
+            await db.refresh(conv)
+
     user_msg = Message(
         conversation_id=conv.id,
         role=MessageRole.user,
@@ -213,9 +228,24 @@ async def chat(
         "needs_web_search": False,
         "generation_count": 0,
         "hallucination_detected": False,
+        "retrieved_count": 0,
     }
 
-    final_state: AgentState = await graph.ainvoke(initial_state)
+    t0 = time.monotonic()
+    async with agent_run_context(conv.mlflow_run_id, str(conv.id), turn_index):
+        final_state: AgentState = await graph.ainvoke(initial_state)
+    latency_ms = int((time.monotonic() - t0) * 1000)
+
+    log_turn_metrics(
+        conv.mlflow_run_id,
+        turn_index=turn_index,
+        retrieved_docs=final_state.get("retrieved_count", 0),
+        relevant_docs=len(final_state.get("documents", [])),
+        needs_web_search=bool(final_state.get("needs_web_search")),
+        generation_count=final_state.get("generation_count", 1),
+        hallucination_detected=bool(final_state.get("hallucination_detected")),
+        latency_ms=latency_ms,
+    )
 
     asst_msg = Message(
         conversation_id=conv.id,

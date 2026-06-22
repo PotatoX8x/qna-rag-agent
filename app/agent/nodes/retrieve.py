@@ -54,6 +54,6 @@ def make_retrieve(services: AppServices):
             logger.exception("retrieve: retriever failed")
             docs = []
 
-        return {"documents": docs, "needs_web_search": False}
+        return {"documents": docs, "needs_web_search": False, "retrieved_count": len(docs)}
 
     return retrieve
