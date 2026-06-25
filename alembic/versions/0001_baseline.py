@@ -51,12 +51,14 @@ def upgrade() -> None:
         sa.Column("kb_id", sa.Uuid(), sa.ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False),
         sa.Column("filename", sa.String(512), nullable=False),
         sa.Column("content_type", sa.String(128), nullable=False),
-        sa.Column("status", sa.Text(), server_default="pending", nullable=False),
+        sa.Column("status", sa.Text(), nullable=False),
         sa.Column("error_msg", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
     )
     op.execute("ALTER TABLE documents ALTER COLUMN status TYPE documentstatus USING status::documentstatus")
+    op.execute("ALTER TABLE documents ALTER COLUMN status SET DEFAULT 'pending'::documentstatus")
+    op.execute("UPDATE documents SET status = 'pending' WHERE status IS NULL")
     op.create_index("ix_documents_kb_id", "documents", ["kb_id"])
 
     op.create_table(
