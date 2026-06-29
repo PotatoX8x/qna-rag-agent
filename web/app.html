@@ -4,13 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QnA RAG Agent</title>
+  <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/base.css" />
   <link rel="stylesheet" href="/assets/css/app.css" />
 </head>
 <body>
   <div class="app-layout">
 
-    <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-header">
         <div class="sidebar-title">QnA RAG Agent</div>
@@ -26,9 +26,11 @@
       </div>
     </aside>
 
-    <!-- Main -->
     <main class="main">
-      <div id="main-header" class="main-header"></div>
+      <header class="main-header">
+        <span id="main-header-title" class="main-header-title"></span>
+        <button class="theme-toggle" type="button" aria-label="Toggle theme"></button>
+      </header>
 
       <div id="empty-state" class="empty-state">
         <span class="empty-state-icon">💬</span>

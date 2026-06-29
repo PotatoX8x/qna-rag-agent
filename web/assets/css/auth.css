@@ -1,9 +1,16 @@
 .auth-page {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
+}
+
+.auth-page > .theme-toggle {
+  position: absolute;
+  top: 16px;
+  right: 20px;
 }
 
 .auth-card {
@@ -77,6 +84,16 @@
 
 .form-group input:focus {
   border-color: var(--primary);
+}
+
+.form-group input.invalid {
+  border-color: var(--error);
+}
+
+.field-error {
+  color: var(--error);
+  font-size: 12px;
+  min-height: 15px;
 }
 
 .btn-primary {

@@ -54,7 +54,7 @@ services:
 
   api:
     build: .
-    command: uvicorn app.api.app:app --host 0.0.0.0 --port 8000
+    command: uvicorn app.api.app:app --host 0.0.0.0 --port 8000 --reload
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://qna:qna@postgres:5432/qna
@@ -64,6 +64,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      - .:/app
       - app_data:/app/data
     depends_on:
       migrate:
@@ -74,12 +75,15 @@ services:
 
   worker:
     build: .
-    command: celery -A app.worker.celery_app worker --loglevel=info -Q ingestion -c 2
+    command: >
+      watchmedo auto-restart --directory=/app/app --pattern=*.py --recursive --
+      celery -A app.worker.celery_app worker --loglevel=info -Q ingestion -c 2
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://qna:qna@postgres:5432/qna
       REDIS_URL: redis://redis:6379/0
     volumes:
+      - .:/app
       - app_data:/app/data
     depends_on:
       migrate:

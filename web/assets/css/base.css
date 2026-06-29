@@ -16,6 +16,27 @@
   --user-bubble-bg: #4f6ef7;
   --user-bubble-text: #ffffff;
   --assistant-bubble-bg: #ffffff;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #14161c;
+  --surface: #1e2128;
+  --border: #2d313c;
+  --primary: #6d86ff;
+  --primary-hover: #8499ff;
+  --text: #e4e6eb;
+  --text-muted: #9aa0aa;
+  --error: #ff6b6b;
+  --sidebar-bg: #0f1116;
+  --sidebar-text: #9aa0aa;
+  --sidebar-hover-bg: #1a1d24;
+  --sidebar-active-bg: #252934;
+  --sidebar-active-text: #ffffff;
+  --user-bubble-bg: #4f6ef7;
+  --user-bubble-text: #ffffff;
+  --assistant-bubble-bg: #252934;
+  color-scheme: dark;
 }
 
 *, *::before, *::after {
@@ -51,4 +72,21 @@ input, textarea {
 a {
   text-decoration: none;
   color: inherit;
+}
+
+.theme-toggle {
+  background: none;
+  border: none;
+  padding: 4px;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s, transform 0.15s;
+}
+
+.theme-toggle:hover {
+  color: var(--text);
+  transform: scale(1.15);
 }
