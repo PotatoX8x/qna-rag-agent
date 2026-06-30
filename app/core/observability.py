@@ -105,12 +105,15 @@ def open_conversation_run(
 
 
 @asynccontextmanager
-async def agent_run_context(run_id: str | None, conversation_id: str, turn_index: int):
+async def agent_run_context(
+    run_id: str | None, conversation_id: str, turn_index: int, query: str
+):
     """Re-attach to the conversation's MLflow run for one agent turn.
 
-    Each turn becomes a named span inside the run. All turns from the same
-    conversation share a trace session id so they group together in the
-    MLflow Traces UI.
+    Each turn becomes a named span inside the run, seeded with the user's
+    question as its input. All turns from the same conversation share a trace
+    session id so they group together in the MLflow Traces UI. The yielded span
+    lets the caller record the final answer as the span output.
 
     Parameters
     ----------
@@ -120,50 +123,37 @@ async def agent_run_context(run_id: str | None, conversation_id: str, turn_index
         Used as the MLflow trace session id.
     turn_index : int
         Zero-based turn counter used to name the span.
+    query : str
+        The user's question, recorded as the span input.
+
+    Yields
+    ------
+    Span or None
+        The active turn span (so the caller can set its output), or ``None``
+        when MLflow is disabled or attaching failed.
     """
     if not run_id or not _state["enabled"]:
-        yield
+        yield None
         return
     try:
         run_cm = mlflow.start_run(run_id=run_id, nested=True)
         run_cm.__enter__()
         span_cm = mlflow.start_span(name=f"turn_{turn_index}")
         span = span_cm.__enter__()
+        span.set_inputs({"question": query})
         mlflow.update_current_trace(session_id=conversation_id)
     except Exception as exc:
         logger.warning("MLflow: could not attach agent trace (%s)", exc)
-        yield
+        yield None
         return
     try:
-        yield
+        yield span
     finally:
         try:
-            _propagate_child_io(span)
             span_cm.__exit__(None, None, None)
             run_cm.__exit__(None, None, None)
         except Exception as exc:
             logger.warning("MLflow: agent run context teardown failed (%s)", exc)
-
-
-def _propagate_child_io(span) -> None:
-    # Mirrors first-child inputs and last-child outputs onto the root span so
-    # the Traces UI preview shows real request/response instead of blanks.
-    try:
-        from mlflow.tracing.trace_manager import InMemoryTraceManager
-        tm = InMemoryTraceManager.get_instance()
-        with tm.get_trace(span.trace_id) as trace:
-            if not trace:
-                return
-            children = [s for s in trace.span_dict.values() if s.span_id != span.span_id]
-            children.sort(key=lambda s: s.start_time_ns or 0)
-            inputs = next((s.inputs for s in children if s.inputs is not None), None)
-            outputs = next((s.outputs for s in reversed(children) if s.outputs is not None), None)
-        if inputs is not None:
-            span.set_inputs(inputs)
-        if outputs is not None:
-            span.set_outputs(outputs)
-    except Exception as exc:
-        logger.debug("MLflow: could not propagate child span I/O (%s)", exc)
 
 
 def log_turn_metrics(

@@ -10,7 +10,14 @@ from pydantic import BaseModel
 class ConversationCreate(BaseModel):
     """Request body for creating a new conversation."""
 
-    kb_id: uuid.UUID
+    kb_id: Optional[uuid.UUID] = None
+    title: Optional[str] = None
+
+
+class ConversationUpdate(BaseModel):
+    """Request body for updating a conversation's knowledge base or title."""
+
+    kb_id: Optional[uuid.UUID] = None
     title: Optional[str] = None
 
 
@@ -52,8 +59,10 @@ class ChatRequest(BaseModel):
 class CitationRead(BaseModel):
     """A single grounded citation returned alongside an answer."""
 
+    index: Optional[int] = None
     chunk_id: Optional[uuid.UUID] = None
     score: float
+    snippet: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

@@ -1,19 +1,27 @@
 import apiFetch from './api.js';
-import { loadKbs, getSelectedKbId, setSelectedKbId } from './kb.js';
+import { el, showView, openModal, closeModal } from './ui.js';
+import { setIcon } from './icons.js';
+import {
+  fetchKbs,
+  openCreateKbModal,
+  renderBasesSidebar,
+  openKbView,
+  pollDocs,
+  stopPolling,
+} from './kb.js';
 
-let activeConvId = null;
+let conversations = [];
+let activeConv = null;
+let kbs = [];
+let kbsById = {};
+let selectedBaseId = null;
+let pickerMode = 'create';
 
-const kbSelect   = document.getElementById('kb-select');
-const btnNewConv = document.getElementById('btn-new-conv');
-const convList   = document.getElementById('conv-list');
-const mainHeader = document.getElementById('main-header-title');
-const emptyState = document.getElementById('empty-state');
-const threadEl   = document.getElementById('thread');
-const inputBar   = document.getElementById('input-bar');
-const textarea   = document.getElementById('chat-input');
-const btnSend    = document.getElementById('btn-send');
-const userLabel  = document.getElementById('user-label');
-const btnLogout  = document.getElementById('btn-logout');
+// Cache of fetched conversation details (id -> detail with messages). Kept in
+// sync locally on send/rename; invalidated on send failure and delete.
+const convCache = {};
+
+const userLabel = el('user-label');
 
 // Display-only decode — signature verification happens server-side.
 function parseJwt(token) {
@@ -24,115 +32,377 @@ function parseJwt(token) {
   }
 }
 
-function showThread() {
-  emptyState.style.display = 'none';
-  threadEl.style.display   = 'flex';
-  inputBar.style.display   = 'flex';
-}
-
-function showEmpty() {
-  emptyState.style.display = 'flex';
-  threadEl.style.display   = 'none';
-  inputBar.style.display   = 'none';
-}
-
-function init() {
+async function init() {
   const token = localStorage.getItem('token');
   if (!token) { location.href = '/'; return; }
-
   userLabel.textContent = parseJwt(token).email || 'User';
 
-  loadKbs(kbSelect).then(loadConversations);
+  document.querySelectorAll('.rail-btn').forEach(b => setIcon(b, b.dataset.icon));
+  setIcon(el('btn-send'), 'send');
 
-  kbSelect.addEventListener('change', () => {
-    setSelectedKbId(kbSelect.value);
-    btnNewConv.disabled = !kbSelect.value;
+  wireSidebar();
+  wirePicker();
+  wireChat();
+
+  await refreshKbs();
+  await loadConversations();
+}
+
+function wireSidebar() {
+  document.querySelectorAll('.rail-btn').forEach(btn => {
+    btn.addEventListener('click', () => selectTab(btn.dataset.tab));
   });
 
-  btnNewConv.addEventListener('click', newConversation);
-  btnSend.addEventListener('click', sendMessage);
+  el('btn-new-chat').addEventListener('click', newConversation);
+  el('btn-new-base').addEventListener('click', () => {
+    openCreateKbModal({ onCreated: async kb => { await refreshKbs(); openBase(kb); } });
+  });
 
-  btnLogout.addEventListener('click', () => {
+  el('btn-logout').addEventListener('click', () => {
     localStorage.removeItem('token');
     location.href = '/';
   });
 
+  el('kb-chip').addEventListener('click', () => openPicker('switch'));
+}
+
+function selectTab(name) {
+  document.querySelectorAll('.rail-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === name);
+  });
+  el('tab-chats').classList.toggle('hidden', name !== 'chats');
+  el('tab-bases').classList.toggle('hidden', name !== 'bases');
+  el('sidebar-section').textContent = name === 'bases' ? 'Knowledge Bases' : 'Chats';
+}
+
+/* Knowledge bases */
+
+async function refreshKbs() {
+  kbs = await fetchKbs();
+  kbsById = Object.fromEntries(kbs.map(kb => [kb.id, kb]));
+  renderBasesSidebar(kbs, { selectedId: selectedBaseId, onSelect: openBase });
+}
+
+function openBase(kb) {
+  selectedBaseId = kb.id;
+  selectTab('bases');
+  el('kb-chip').classList.add('hidden');
+  stopPolling();
+  renderBasesSidebar(kbs, { selectedId: selectedBaseId, onSelect: openBase });
+  openKbView(kb, { onChanged: onBaseChanged });
+}
+
+async function onBaseChanged(info = {}) {
+  if (info && info.deleted) {
+    const deletedId = info.deleted;
+    selectedBaseId = null;
+    // The backend nulls kb_id on any chat that used this base (ON DELETE SET NULL);
+    // mirror that in the local list and cache so subtitles/pickers stay correct.
+    conversations.forEach(c => { if (c.kb_id === deletedId) c.kb_id = null; });
+    Object.values(convCache).forEach(d => { if (d.kb_id === deletedId) d.kb_id = null; });
+    if (activeConv && activeConv.kb_id === deletedId) activeConv.kb_id = null;
+    showView('view-empty');
+  }
+  await refreshKbs();
+  renderConvList();
+}
+
+/* KB picker modal */
+
+function wirePicker() {
+  el('btn-picker-cancel').addEventListener('click', () => {
+    closeModal('modal-picker');
+    if (!activeConv) showView('view-empty');
+  });
+
+  el('btn-picker-new').addEventListener('click', () => {
+    closeModal('modal-picker');
+    openCreateKbModal({
+      onCreated: async kb => {
+        await refreshKbs();
+        if (pickerMode === 'create') await createConversationWithKb(kb);
+        else await bindKb(kb.id);
+      },
+    });
+  });
+}
+
+function openPicker(mode) {
+  pickerMode = mode;
+  const currentKb = activeConv && activeConv.kb_id;
+  const list = el('picker-kb-list');
+  list.innerHTML = '';
+  if (!kbs.length) {
+    list.innerHTML = '<div class="list-empty">No knowledge bases yet — create one below.</div>';
+  }
+  kbs.forEach(kb => {
+    const row = document.createElement('div');
+    row.className = 'picker-kb-item' + (kb.id === currentKb ? ' active' : '');
+
+    const select = document.createElement('button');
+    select.type = 'button';
+    select.className = 'picker-kb-select';
+    select.textContent = kb.name;
+    select.addEventListener('click', () => choosePickerKb(kb));
+
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'picker-kb-edit icon-btn';
+    edit.title = 'Edit knowledge base';
+    setIcon(edit, 'edit');
+    edit.addEventListener('click', () => { closeModal('modal-picker'); openBase(kb); });
+
+    row.append(select, edit);
+    list.appendChild(row);
+  });
+  openModal('modal-picker');
+}
+
+async function choosePickerKb(kb) {
+  closeModal('modal-picker');
+  if (pickerMode === 'create') await createConversationWithKb(kb);
+  else await bindKb(kb.id);
+}
+
+/* Conversations */
+
+async function loadConversations() {
+  conversations = await apiFetch('/api/conversations');
+  renderConvList();
+}
+
+function renderConvList() {
+  const list = el('conv-list');
+  list.innerHTML = '';
+  if (!conversations.length) {
+    list.innerHTML = '<div class="list-empty">No chats yet.</div>';
+    return;
+  }
+  conversations.forEach(conv => list.appendChild(makeConvItem(conv)));
+}
+
+function makeConvItem(conv) {
+  const item = document.createElement('div');
+  item.className = 'list-item' + (activeConv && conv.id === activeConv.id ? ' active' : '');
+  item.dataset.id = conv.id;
+
+  const main = document.createElement('div');
+  main.className = 'list-item-main';
+
+  const title = document.createElement('span');
+  title.className = 'list-item-title';
+  title.textContent = conv.title || 'New chat';
+
+  const sub = document.createElement('span');
+  sub.className = 'list-item-sub';
+  const kb = kbsById[conv.kb_id];
+  sub.textContent = kb ? kb.name : 'No knowledge base';
+
+  main.append(title, sub);
+
+  const actions = document.createElement('div');
+  actions.className = 'list-item-actions';
+
+  const edit = document.createElement('button');
+  edit.className = 'list-item-edit';
+  edit.type = 'button';
+  setIcon(edit, 'edit');
+  edit.title = 'Rename chat';
+  edit.addEventListener('click', e => { e.stopPropagation(); startRename(item, conv); });
+
+  const del = document.createElement('button');
+  del.className = 'list-item-delete';
+  del.type = 'button';
+  setIcon(del, 'trash');
+  del.title = 'Delete chat';
+  del.addEventListener('click', e => { e.stopPropagation(); confirmDeleteConv(item, conv); });
+
+  actions.append(edit, del);
+  item.append(main, actions);
+  item.addEventListener('click', () => openConversation(conv.id));
+  return item;
+}
+
+// Swap the chat row into an inline "Delete chat?" confirm prompt.
+function confirmDeleteConv(item, conv) {
+  item.innerHTML = '';
+  item.classList.add('confirming');
+
+  const text = document.createElement('span');
+  text.className = 'row-confirm-text';
+  text.textContent = 'Delete chat?';
+
+  const actions = document.createElement('div');
+  actions.className = 'row-confirm-actions';
+
+  const no = document.createElement('button');
+  no.className = 'row-confirm-no';
+  no.type = 'button';
+  no.textContent = 'Cancel';
+  no.addEventListener('click', e => { e.stopPropagation(); renderConvList(); });
+
+  const yes = document.createElement('button');
+  yes.className = 'row-confirm-yes';
+  yes.type = 'button';
+  yes.textContent = 'Delete';
+  yes.addEventListener('click', e => { e.stopPropagation(); deleteConversation(conv.id); });
+
+  actions.append(no, yes);
+  item.append(text, actions);
+}
+
+function startRename(item, conv) {
+  const title = item.querySelector('.list-item-title');
+  const input = document.createElement('input');
+  input.className = 'list-item-rename';
+  input.value = conv.title || '';
+  title.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  const finish = async commit => {
+    if (done) return;
+    done = true;
+    const name = input.value.trim();
+    if (commit && name && name !== conv.title) {
+      const updated = await apiFetch(`/api/conversations/${conv.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title: name }),
+      });
+      conv.title = updated.title;
+      if (convCache[conv.id]) convCache[conv.id].title = updated.title;
+      if (activeConv && activeConv.id === conv.id) activeConv.title = updated.title;
+    }
+    renderConvList();
+  };
+
+  input.addEventListener('click', e => e.stopPropagation());
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') finish(false);
+  });
+  input.addEventListener('blur', () => finish(true));
+}
+
+function newConversation() {
+  activeConv = null;
+  selectTab('chats');
+  renderConvList();
+  el('kb-chip').classList.add('hidden');
+  showView('view-empty');
+  openPicker('create');
+}
+
+async function createConversationWithKb(kb) {
+  const conv = await apiFetch('/api/conversations', {
+    method: 'POST',
+    body: JSON.stringify({ kb_id: kb.id }),
+  });
+  conversations.unshift(conv);
+  selectTab('chats');
+  await openConversation(conv.id);
+}
+
+async function openConversation(id) {
+  stopPolling();
+  let detail = convCache[id];
+  if (!detail) {
+    detail = await apiFetch(`/api/conversations/${id}`);
+    convCache[id] = detail;
+  }
+  activeConv = detail;
+  selectedBaseId = null;
+  renderConvList();
+
+  if (detail.kb_id) {
+    openChatView(detail);
+  } else {
+    showView('view-empty');
+    openPicker('switch');
+  }
+}
+
+async function deleteConversation(id) {
+  await apiFetch(`/api/conversations/${id}`, { method: 'DELETE' });
+  delete convCache[id];
+  conversations = conversations.filter(c => c.id !== id);
+  if (activeConv && activeConv.id === id) {
+    activeConv = null;
+    stopPolling();
+    el('kb-chip').classList.add('hidden');
+    showView('view-empty');
+  }
+  renderConvList();
+}
+
+async function bindKb(kbId) {
+  const updated = await apiFetch(`/api/conversations/${activeConv.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ kb_id: kbId }),
+  });
+  activeConv.kb_id = updated.kb_id;
+  const listed = conversations.find(c => c.id === activeConv.id);
+  if (listed) listed.kb_id = updated.kb_id;
+  renderConvList();
+  openChatView(activeConv);
+}
+
+/* Chat view */
+
+function openChatView(conv) {
+  showView('view-chat');
+  const kb = kbsById[conv.kb_id];
+  const chip = el('kb-chip');
+  chip.innerHTML = '';
+  const icon = document.createElement('span');
+  icon.className = 'kb-chip-icon';
+  setIcon(icon, 'bases');
+  const label = document.createElement('span');
+  label.textContent = kb ? kb.name : 'Select base';
+  chip.append(icon, label);
+  chip.classList.remove('hidden');
+
+  const thread = el('thread');
+  thread.innerHTML = '';
+  (conv.messages || []).forEach(m => appendMessage(m.role, m.content, []));
+  thread.scrollTop = thread.scrollHeight;
+
+  pollDocs(conv.kb_id, applyGate);
+}
+
+function applyGate(docs) {
+  const ready = docs.some(d => d.status === 'ready');
+  const busy = docs.some(d => d.status === 'pending' || d.status === 'processing');
+  const textarea = el('chat-input');
+  const notice = el('gate-notice');
+
+  textarea.disabled = !ready;
+  el('btn-send').disabled = !ready;
+
+  if (ready) {
+    notice.classList.add('hidden');
+  } else {
+    notice.classList.remove('hidden');
+    notice.textContent = busy
+      ? 'Ingesting your documents… you can chat once at least one document is ready.'
+      : 'This knowledge base has no ready documents. Add documents in the Knowledge Bases tab or switch base.';
+  }
+}
+
+function wireChat() {
+  el('btn-send').addEventListener('click', sendMessage);
+  el('thread').addEventListener('scroll', hideCiteTip);
+
+  const textarea = el('chat-input');
   textarea.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
-
   textarea.addEventListener('input', () => {
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(textarea.scrollHeight, 140) + 'px';
   });
 }
-
-/* Conversation list */
-
-async function loadConversations() {
-  const convs = await apiFetch('/api/conversations');
-  convList.innerHTML = '';
-  convs.forEach(conv => convList.appendChild(makeConvItem(conv)));
-}
-
-function makeConvItem(conv) {
-  const el = document.createElement('div');
-  el.className = 'conv-item' + (conv.id === activeConvId ? ' active' : '');
-  el.dataset.id = conv.id;
-
-  const title = document.createElement('span');
-  title.className = 'conv-title';
-  title.textContent = conv.title || 'Untitled';
-
-  const del = document.createElement('button');
-  del.className = 'conv-delete';
-  del.textContent = '×';
-  del.title = 'Delete conversation';
-  del.addEventListener('click', e => { e.stopPropagation(); deleteConversation(conv.id); });
-
-  el.appendChild(title);
-  el.appendChild(del);
-  el.addEventListener('click', () => openConversation(conv.id));
-  return el;
-}
-
-async function newConversation() {
-  const kbId = getSelectedKbId();
-  if (!kbId) return;
-  const conv = await apiFetch('/api/conversations', {
-    method: 'POST',
-    body: JSON.stringify({ kb_id: kbId }),
-  });
-  await loadConversations();
-  openConversation(conv.id);
-}
-
-async function openConversation(id) {
-  activeConvId = id;
-  document.querySelectorAll('.conv-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.id === id);
-  });
-
-  const detail = await apiFetch(`/api/conversations/${id}`);
-  mainHeader.textContent = detail.title || 'Untitled';
-  showThread();
-  threadEl.innerHTML = '';
-  detail.messages.forEach(m => appendMessage(m.role, m.content, []));
-  threadEl.scrollTop = threadEl.scrollHeight;
-}
-
-async function deleteConversation(id) {
-  await apiFetch(`/api/conversations/${id}`, { method: 'DELETE' });
-  if (activeConvId === id) {
-    activeConvId = null;
-    mainHeader.textContent = '';
-    threadEl.innerHTML = '';
-    showEmpty();
-  }
-  await loadConversations();
-}
-
-/* Thread rendering */
 
 function appendMessage(role, content, citations = []) {
   const wrap = document.createElement('div');
@@ -140,24 +410,88 @@ function appendMessage(role, content, citations = []) {
 
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
-  bubble.textContent = content;
+  if (role === 'assistant') {
+    bubble.appendChild(renderAnswer(content, citations));
+  } else {
+    bubble.textContent = content;
+  }
   wrap.appendChild(bubble);
 
-  if (citations.length) {
-    const chips = document.createElement('div');
-    chips.className = 'citations';
-    citations.forEach((c, i) => {
-      const chip = document.createElement('span');
-      chip.className = 'citation-chip';
-      chip.textContent = `[${i + 1}] score ${c.score.toFixed(2)}`;
-      chips.appendChild(chip);
-    });
-    wrap.appendChild(chips);
-  }
-
-  threadEl.appendChild(wrap);
-  threadEl.scrollTop = threadEl.scrollHeight;
+  const thread = el('thread');
+  thread.appendChild(wrap);
+  thread.scrollTop = thread.scrollHeight;
   return wrap;
+}
+
+// Turn inline [n] markers in an answer into citations numbered from 1 that
+// reveal the source passage on hover. Indices map to the model's 0-based ids.
+function renderAnswer(content, citations) {
+  const byIndex = {};
+  citations.forEach(c => { if (c.index != null) byIndex[c.index] = c; });
+
+  const frag = document.createDocumentFragment();
+  const re = /\[(\d+)\]/g;
+  let last = 0;
+  let m;
+  while ((m = re.exec(content)) !== null) {
+    if (m.index > last) frag.appendChild(document.createTextNode(content.slice(last, m.index)));
+    const n = parseInt(m[1], 10);
+    frag.appendChild(makeCite(n, byIndex[n]));
+    last = re.lastIndex;
+  }
+  if (last < content.length) frag.appendChild(document.createTextNode(content.slice(last)));
+  return frag;
+}
+
+function makeCite(n, citation) {
+  const sup = document.createElement('sup');
+  sup.className = 'cite';
+  sup.textContent = `[${n + 1}]`;
+  if (citation && citation.snippet) {
+    const quote = formatQuote(citation.snippet);
+    sup.addEventListener('mouseenter', () => showCiteTip(sup, quote));
+    sup.addEventListener('mouseleave', hideCiteTip);
+  } else {
+    sup.classList.add('cite-plain');
+  }
+  return sup;
+}
+
+// Collapse whitespace, cap length, and frame as an excerpt with ellipses.
+function formatQuote(snippet) {
+  const max = 180;
+  let s = snippet.trim().replace(/\s+/g, ' ');
+  if (s.length > max) s = s.slice(0, max).trimEnd();
+  return `…${s}…`;
+}
+
+let citeTip = null;
+
+function showCiteTip(target, quote) {
+  if (!citeTip) {
+    citeTip = document.createElement('div');
+    citeTip.className = 'cite-tip';
+    document.body.appendChild(citeTip);
+  }
+  citeTip.textContent = quote;
+  citeTip.style.display = 'block';
+
+  const r = target.getBoundingClientRect();
+  const tip = citeTip.getBoundingClientRect();
+  const margin = 8;
+
+  let left = r.left + r.width / 2 - tip.width / 2;
+  left = Math.max(margin, Math.min(left, window.innerWidth - tip.width - margin));
+
+  let top = r.top - tip.height - 6;
+  if (top < margin) top = r.bottom + 6;
+
+  citeTip.style.left = `${left}px`;
+  citeTip.style.top = `${top}px`;
+}
+
+function hideCiteTip() {
+  if (citeTip) citeTip.style.display = 'none';
 }
 
 // Animated three-dot placeholder while the agent is running.
@@ -166,42 +500,65 @@ function appendThinking() {
   wrap.className = 'message assistant';
   const bubble = document.createElement('div');
   bubble.className = 'bubble thinking';
-  bubble.innerHTML =
-    '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+  bubble.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
   wrap.appendChild(bubble);
-  threadEl.appendChild(wrap);
-  threadEl.scrollTop = threadEl.scrollHeight;
+  const thread = el('thread');
+  thread.appendChild(wrap);
+  thread.scrollTop = thread.scrollHeight;
   return wrap;
 }
 
-/* Send */
-
 async function sendMessage() {
+  const textarea = el('chat-input');
   const text = textarea.value.trim();
-  if (!text || !activeConvId) return;
+  if (!text || !activeConv) return;
+
+  const conv = activeConv;
+  const firstTurn = !(conv.messages && conv.messages.length);
 
   textarea.value = '';
   textarea.style.height = 'auto';
-  btnSend.disabled  = true;
+  el('btn-send').disabled = true;
   textarea.disabled = true;
 
   appendMessage('user', text);
   const thinking = appendThinking();
 
   try {
-    const res = await apiFetch(`/api/conversations/${activeConvId}/chat`, {
+    const res = await apiFetch(`/api/conversations/${conv.id}/chat`, {
       method: 'POST',
       body: JSON.stringify({ message: text }),
     });
     thinking.remove();
     appendMessage('assistant', res.answer, res.citations || []);
+    conv.messages = conv.messages || [];
+    conv.messages.push({ role: 'user', content: text });
+    conv.messages.push({ role: 'assistant', content: res.answer });
+    if (firstTurn && !conv.title) generateTitle(conv.id);
   } catch (err) {
     thinking.remove();
     appendMessage('assistant', `Error: ${err.message}`);
+    delete convCache[conv.id];
   } finally {
-    btnSend.disabled  = false;
+    el('btn-send').disabled = false;
     textarea.disabled = false;
     textarea.focus();
+  }
+}
+
+// Ask the backend to title an untitled chat after its first exchange.
+// Fire-and-forget: never blocks the chat flow; fills the sidebar when ready.
+async function generateTitle(convId) {
+  try {
+    const res = await apiFetch(`/api/conversations/${convId}/title`, { method: 'POST' });
+    if (!res || !res.title) return;
+    if (activeConv && activeConv.id === convId) activeConv.title = res.title;
+    if (convCache[convId]) convCache[convId].title = res.title;
+    const listed = conversations.find(c => c.id === convId);
+    if (listed) listed.title = res.title;
+    renderConvList();
+  } catch {
+    /* titling is non-critical */
   }
 }
 

@@ -1,3 +1,4 @@
+import logging
 import re
 import uuid
 from pathlib import Path
@@ -6,6 +7,8 @@ import psycopg
 from langchain_core.documents import Document
 
 from app.worker.celery_app import celery_app
+
+logger = logging.getLogger(__name__)
 
 
 def _sync_url(url: str) -> str:
@@ -76,6 +79,7 @@ def ingest_document(self, document_id: str, kb_id: str) -> dict:
         return {"document_id": document_id, "chunks": len(docs)}
 
     except Exception as exc:
+        logger.exception("ingest_document failed for %s (kb %s)", document_id, kb_id)
         try:
             with psycopg.connect(conninfo) as conn:
                 with conn.cursor() as cur:

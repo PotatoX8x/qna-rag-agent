@@ -29,13 +29,15 @@ services:
     restart: unless-stopped
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.19.0
+    image: ghcr.io/mlflow/mlflow:v3.12.0
     command: >
       mlflow server
       --host 0.0.0.0
       --port 5000
       --backend-store-uri sqlite:///mlflow/mlflow.db
       --default-artifact-root /mlflow/artifacts
+    environment:
+      MLFLOW_SERVER_ALLOWED_HOSTS: "mlflow:5000,localhost:5000,127.0.0.1:5000"
     ports:
       - "5000:5000"
     volumes:

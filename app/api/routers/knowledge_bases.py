@@ -2,12 +2,13 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import current_user
 from app.api.dependencies.db import get_db
 from app.api.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseRead
+from app.db.orm.document import Document
 from app.db.orm.knowledge_base import KnowledgeBase
 from app.db.orm.user import User
 
@@ -34,9 +35,17 @@ async def list_knowledge_bases(user: _CurrentUser, db: _DB) -> list[KnowledgeBas
         Knowledge bases ordered by creation date descending.
     """
     result = await db.execute(
-        select(KnowledgeBase).where(KnowledgeBase.user_id == user.id).order_by(KnowledgeBase.created_at.desc())
+        select(KnowledgeBase, func.count(Document.id))
+        .outerjoin(Document, Document.kb_id == KnowledgeBase.id)
+        .where(KnowledgeBase.user_id == user.id)
+        .group_by(KnowledgeBase.id)
+        .order_by(KnowledgeBase.created_at.desc())
     )
-    return list(result.scalars().all())
+    kbs = []
+    for kb, count in result.all():
+        kb.document_count = count
+        kbs.append(kb)
+    return kbs
 
 
 @router.post("", response_model=KnowledgeBaseRead, status_code=status.HTTP_201_CREATED)

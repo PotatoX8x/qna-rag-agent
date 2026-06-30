@@ -8,6 +8,7 @@
   --text-muted: #6b7280;
   --error: #e53e3e;
   --radius: 8px;
+  --rail-bg: #15171f;
   --sidebar-bg: #1e2235;
   --sidebar-text: #9aa5b8;
   --sidebar-hover-bg: #252940;
@@ -28,6 +29,7 @@
   --text: #e4e6eb;
   --text-muted: #9aa0aa;
   --error: #ff6b6b;
+  --rail-bg: #08090c;
   --sidebar-bg: #0f1116;
   --sidebar-text: #9aa0aa;
   --sidebar-hover-bg: #1a1d24;
@@ -43,6 +45,10 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+.hidden {
+  display: none !important;
 }
 
 html, body {

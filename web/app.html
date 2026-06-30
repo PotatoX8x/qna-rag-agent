@@ -11,14 +11,25 @@
 <body>
   <div class="app-layout">
 
+    <nav class="rail">
+      <button class="rail-btn active" data-tab="chats" data-icon="chats" type="button" title="Chats"></button>
+      <button class="rail-btn" data-tab="bases" data-icon="bases" type="button" title="Knowledge Bases"></button>
+    </nav>
+
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="sidebar-title">QnA RAG Agent</div>
-        <select id="kb-select" class="kb-select"></select>
-        <button id="btn-new-conv" class="btn-new-conv" disabled>+ New conversation</button>
+        <div id="sidebar-section" class="sidebar-section">Chats</div>
       </div>
 
-      <div id="conv-list" class="sidebar-conversations"></div>
+      <div id="tab-chats" class="sidebar-panel">
+        <button id="btn-new-chat" class="btn-new">+ New chat</button>
+        <div id="conv-list" class="sidebar-list"></div>
+      </div>
+
+      <div id="tab-bases" class="sidebar-panel hidden">
+        <button id="btn-new-base" class="btn-new">+ New knowledge base</button>
+        <div id="kb-list" class="sidebar-list"></div>
+      </div>
 
       <div class="sidebar-footer">
         <span id="user-label" class="sidebar-user"></span>
@@ -28,25 +39,84 @@
 
     <main class="main">
       <header class="main-header">
-        <span id="main-header-title" class="main-header-title"></span>
+        <button id="kb-chip" class="kb-chip hidden" type="button"></button>
         <button class="theme-toggle" type="button" aria-label="Toggle theme"></button>
       </header>
 
-      <div id="empty-state" class="empty-state">
+      <div id="view-empty" class="view empty-state">
         <span class="empty-state-icon">💬</span>
-        <span class="empty-state-text">No conversation selected</span>
-        <span class="empty-state-hint">Pick a knowledge base and start a new conversation.</span>
+        <span class="empty-state-text">Nothing selected</span>
+        <span class="empty-state-hint">Start a new chat or pick a knowledge base.</span>
       </div>
 
-      <div id="thread" class="thread" style="display: none;"></div>
+      <div id="view-chat" class="view chat-view hidden">
+        <div id="thread" class="thread"></div>
+        <div class="composer">
+          <div id="gate-notice" class="gate-notice hidden"></div>
+          <div class="input-wrap">
+            <textarea id="chat-input" rows="1" placeholder="Ask a question…"></textarea>
+            <button id="btn-send" class="btn-send" type="button" aria-label="Send"></button>
+          </div>
+        </div>
+      </div>
 
-      <div id="input-bar" class="input-bar" style="display: none;">
-        <textarea id="chat-input" rows="1"
-          placeholder="Ask a question… (Enter to send, Shift+Enter for new line)"></textarea>
-        <button id="btn-send" class="btn-send">Send</button>
+      <div id="view-kb" class="view kb-view hidden">
+        <div class="kb-view-head">
+          <div class="kb-view-meta">
+            <div class="kb-title-row">
+              <h2 id="kb-view-name" class="kb-view-name"></h2>
+              <button id="btn-kb-rename" class="icon-btn" type="button" title="Rename"></button>
+            </div>
+            <p id="kb-view-desc" class="kb-view-desc"></p>
+          </div>
+          <div id="kb-delete-wrap" class="kb-delete-wrap">
+            <button id="btn-kb-delete" class="btn-danger">Delete knowledge base</button>
+          </div>
+        </div>
+        <div class="kb-toolbar">
+          <input id="kb-file-input" type="file" multiple hidden />
+          <button id="btn-kb-upload" class="btn-primary">+ Upload documents</button>
+          <button id="btn-kb-refresh" class="icon-btn" type="button" title="Refresh"></button>
+        </div>
+        <div id="kb-doc-list" class="doc-list"></div>
       </div>
     </main>
+  </div>
 
+  <div id="modal-picker" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 class="modal-title">Choose a knowledge base</h2>
+      <p class="kb-picker-sub">This chat will answer from the base you select.</p>
+      <div id="picker-kb-list" class="picker-kb-list"></div>
+      <div class="modal-actions">
+        <button id="btn-picker-cancel" class="btn-secondary">Cancel</button>
+        <button id="btn-picker-new" class="btn-primary">+ Create new knowledge base</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-create-kb" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 class="modal-title">Create knowledge base</h2>
+      <div class="form-group">
+        <label for="create-kb-name">Name</label>
+        <input id="create-kb-name" type="text" placeholder="e.g. Product docs" />
+        <span class="field-error" id="create-kb-name-error"></span>
+      </div>
+      <div class="form-group">
+        <label>Documents</label>
+        <div id="create-kb-drop" class="dropzone">
+          <input id="create-kb-files" type="file" multiple hidden />
+          <span class="dropzone-hint">Drop files here or click to browse</span>
+        </div>
+        <div id="create-kb-filelist" class="file-pending-list"></div>
+      </div>
+      <p id="create-kb-error" class="modal-error"></p>
+      <div class="modal-actions">
+        <button id="btn-create-kb-cancel" class="btn-secondary">Cancel</button>
+        <button id="btn-create-kb-submit" class="btn-primary">Create</button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="/assets/js/chat.js"></script>

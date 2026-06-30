@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from typing import Annotated
@@ -18,6 +19,7 @@ from app.api.schemas.conversation import (
     ConversationCreate,
     ConversationDetail,
     ConversationRead,
+    ConversationUpdate,
 )
 from app.agent.state import AgentState
 from app.core.observability import agent_run_context, log_turn_metrics, open_conversation_run
@@ -25,6 +27,8 @@ from app.db.orm.conversation import Conversation
 from app.db.orm.knowledge_base import KnowledgeBase
 from app.db.orm.message import Message, MessageCitation, MessageRole
 from app.db.orm.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -57,7 +61,8 @@ async def create_conversation(
     HTTPException
         404 when the knowledge base does not exist or is not owned by the user.
     """
-    await _assert_kb_owned(body.kb_id, user, db)
+    if body.kb_id is not None:
+        await _assert_kb_owned(body.kb_id, user, db)
     conv = Conversation(user_id=user.id, kb_id=body.kb_id, title=body.title)
     db.add(conv)
     await db.commit()
@@ -122,6 +127,46 @@ async def get_conversation(
     conv = result.scalar_one_or_none()
     if conv is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    return conv
+
+
+@router.patch("/{conv_id}", response_model=ConversationRead)
+async def update_conversation(
+    conv_id: uuid.UUID, body: ConversationUpdate, user: _CurrentUser, db: _DB
+) -> Conversation:
+    """Update a conversation's bound knowledge base and/or title.
+
+    Parameters
+    ----------
+    conv_id : uuid.UUID
+        Conversation identifier.
+    body : ConversationUpdate
+        Fields to update. A provided ``kb_id`` must reference a KB owned by the user.
+    user : User
+        Authenticated user; must own the conversation.
+    db : AsyncSession
+        Database session.
+
+    Returns
+    -------
+    Conversation
+        Updated conversation row.
+
+    Raises
+    ------
+    HTTPException
+        404 when the conversation or the target knowledge base is not found.
+    """
+    conv = await _get_owned(conv_id, user, db)
+    fields = body.model_dump(exclude_unset=True)
+    if "kb_id" in fields:
+        if fields["kb_id"] is not None:
+            await _assert_kb_owned(fields["kb_id"], user, db)
+        conv.kb_id = fields["kb_id"]
+    if "title" in fields:
+        conv.title = fields["title"]
+    await db.commit()
+    await db.refresh(conv)
     return conv
 
 
@@ -232,8 +277,12 @@ async def chat(
     }
 
     t0 = time.monotonic()
-    async with agent_run_context(conv.mlflow_run_id, str(conv.id), turn_index):
+    async with agent_run_context(
+        conv.mlflow_run_id, str(conv.id), turn_index, body.message
+    ) as trace_span:
         final_state: AgentState = await graph.ainvoke(initial_state)
+        if trace_span is not None:
+            trace_span.set_outputs({"answer": final_state.get("answer", "")})
     latency_ms = int((time.monotonic() - t0) * 1000)
 
     log_turn_metrics(
@@ -271,7 +320,14 @@ async def chat(
                 )
             except (ValueError, TypeError):
                 pass
-        citation_reads.append(CitationRead(chunk_id=chunk_uuid, score=float(cit.get("score", 0.0))))
+        citation_reads.append(
+            CitationRead(
+                index=cit.get("index"),
+                chunk_id=chunk_uuid,
+                score=float(cit.get("score", 0.0)),
+                snippet=cit.get("snippet"),
+            )
+        )
 
     await db.commit()
 
@@ -280,6 +336,59 @@ async def chat(
         citations=citation_reads,
         conversation_id=conv.id,
     )
+
+
+@router.post("/{conv_id}/title", response_model=ConversationRead)
+async def generate_title(
+    conv_id: uuid.UUID, user: _CurrentUser, db: _DB, request: Request
+) -> Conversation:
+    """Generate and persist a short title from the conversation's first question.
+
+    Idempotent: returns the conversation unchanged when it already has a title
+    or has no user messages yet. Intended to be called fire-and-forget by the
+    client after the first exchange so the chat response is never blocked.
+
+    Parameters
+    ----------
+    conv_id : uuid.UUID
+        Conversation to title.
+    user : User
+        Authenticated user; must own the conversation.
+    db : AsyncSession
+        Database session.
+    request : Request
+        FastAPI request, used to reach the LLM client on ``app.state.services``.
+
+    Returns
+    -------
+    Conversation
+        The conversation, with a freshly generated title when one was produced.
+
+    Raises
+    ------
+    HTTPException
+        404 when the conversation does not exist or is not owned by the user.
+    """
+    conv = await _get_owned(conv_id, user, db)
+    if conv.title:
+        return conv
+
+    result = await db.execute(
+        select(Message)
+        .where(Message.conversation_id == conv.id, Message.role == MessageRole.user)
+        .order_by(Message.created_at)
+        .limit(1)
+    )
+    first = result.scalar_one_or_none()
+    if first is None:
+        return conv
+
+    new_title = await _generate_title(request.app.state.services.llm, first.content)
+    if new_title:
+        conv.title = new_title
+        await db.commit()
+        await db.refresh(conv)
+    return conv
 
 
 async def _get_owned(conv_id: uuid.UUID, user: User, db: AsyncSession) -> Conversation:
@@ -313,6 +422,40 @@ async def _get_owned(conv_id: uuid.UUID, user: User, db: AsyncSession) -> Conver
     if conv is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
     return conv
+
+
+async def _generate_title(llm, question: str) -> str | None:
+    """Generate a short conversation title from the user's first question.
+
+    Parameters
+    ----------
+    llm : BaseLLMClient
+        Service-container LLM client used for the summarisation call.
+    question : str
+        The user's first message in the conversation.
+
+    Returns
+    -------
+    str or None
+        A 3-5 word title, or ``None`` when generation fails or yields nothing.
+    """
+    from app.prompts.agent import title as tp
+
+    try:
+        raw = await llm.complete(
+            system_prompt=tp.SYSTEM_PROMPT,
+            user_prompt=tp.HUMAN_PROMPT.format(question=question[:1000]),
+            temperature=0.3,
+            max_tokens=24,
+        )
+    except Exception:
+        logger.exception("title generation failed")
+        return None
+
+    cleaned = (raw or "").strip().strip('"').strip()
+    if cleaned:
+        cleaned = cleaned.splitlines()[0].strip()
+    return cleaned[:80] or None
 
 
 async def _assert_kb_owned(kb_id: uuid.UUID, user: User, db: AsyncSession) -> None:

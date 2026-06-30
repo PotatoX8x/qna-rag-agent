@@ -5,7 +5,11 @@ const BASE = '';
 async function apiFetch(path, opts = {}) {
   const { redirectOn401 = true, ...fetchOpts } = opts;
   const token = localStorage.getItem('token');
-  const headers = { 'Content-Type': 'application/json', ...fetchOpts.headers };
+
+  // Let the browser set the multipart boundary for FormData; only force JSON otherwise.
+  const isFormData = fetchOpts.body instanceof FormData;
+  const headers = { ...fetchOpts.headers };
+  if (!isFormData) headers['Content-Type'] = 'application/json';
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(BASE + path, { ...fetchOpts, headers });

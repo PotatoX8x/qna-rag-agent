@@ -57,7 +57,12 @@ def make_generate(services: AppServices):
             )
             answer = result.answer
             citations = [
-                {"chunk_id": docs[i][0].metadata.get("id"), "score": docs[i][1]}
+                {
+                    "index": i,
+                    "chunk_id": docs[i][0].metadata.get("id"),
+                    "score": docs[i][1],
+                    "snippet": docs[i][0].page_content[:500],
+                }
                 for i in result.cited_indices
                 if i < len(docs)
             ]
