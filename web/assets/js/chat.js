@@ -16,6 +16,8 @@ let kbs = [];
 let kbsById = {};
 let selectedBaseId = null;
 let pickerMode = 'create';
+let pickerSelectedKb = null;
+let pickerSearchTerm = '';
 
 // Cache of fetched conversation details (id -> detail with messages). Kept in
 // sync locally on send/rename; invalidated on send failure and delete.
@@ -39,6 +41,7 @@ async function init() {
 
   document.querySelectorAll('.rail-btn').forEach(b => setIcon(b, b.dataset.icon));
   setIcon(el('btn-send'), 'send');
+  setIcon(document.querySelector('.picker-search-icon'), 'search');
 
   wireSidebar();
   wirePicker();
@@ -90,6 +93,11 @@ function wireSidebar() {
   });
 
   el('kb-chip').addEventListener('click', () => openPicker('switch'));
+
+  el('conv-list').addEventListener('scroll', closeRowConfirm);
+  document.addEventListener('click', e => {
+    if (rowConfirmBox && !rowConfirmBox.contains(e.target)) closeRowConfirm();
+  });
 }
 
 function selectTab(name) {
@@ -144,6 +152,18 @@ function wirePicker() {
     if (!activeConv) showView('view-empty');
   });
 
+  el('picker-search').addEventListener('input', e => {
+    pickerSearchTerm = e.target.value.trim().toLowerCase();
+    renderPickerList();
+  });
+
+  el('btn-picker-confirm').addEventListener('click', async () => {
+    if (!pickerSelectedKb) return;
+    closeModal('modal-picker');
+    if (pickerMode === 'create') await createConversationWithKb(pickerSelectedKb);
+    else await bindKb(pickerSelectedKb.id);
+  });
+
   el('btn-picker-new').addEventListener('click', () => {
     closeModal('modal-picker');
     openCreateKbModal({
@@ -158,21 +178,60 @@ function wirePicker() {
 
 function openPicker(mode) {
   pickerMode = mode;
-  const currentKb = activeConv && activeConv.kb_id;
+  pickerSearchTerm = '';
+  el('picker-search').value = '';
+  const currentKbId = activeConv && activeConv.kb_id;
+  pickerSelectedKb = (currentKbId && kbsById[currentKbId]) || null;
+  el('btn-picker-confirm').textContent = mode === 'create' ? 'Create chat' : 'Switch knowledge base';
+  el('btn-picker-confirm').disabled = !pickerSelectedKb;
+  renderPickerList();
+  openModal('modal-picker');
+}
+
+// Rebuilds the picker list from `kbs`, filtered by `pickerSearchTerm`.
+function renderPickerList() {
   const list = el('picker-kb-list');
   list.innerHTML = '';
+
+  const filtered = pickerSearchTerm
+    ? kbs.filter(kb => kb.name.toLowerCase().includes(pickerSearchTerm))
+    : kbs;
+
   if (!kbs.length) {
-    list.innerHTML = '<div class="list-empty">No knowledge bases yet — create one below.</div>';
+    const empty = document.createElement('div');
+    empty.className = 'list-empty';
+    empty.textContent = 'No knowledge bases yet — create one below.';
+    list.appendChild(empty);
+  } else if (!filtered.length) {
+    const empty = document.createElement('div');
+    empty.className = 'list-empty';
+    empty.textContent = 'No matches.';
+    list.appendChild(empty);
   }
-  kbs.forEach(kb => {
+
+  filtered.forEach(kb => {
+    const active = pickerSelectedKb && kb.id === pickerSelectedKb.id;
+
+    // Editing a KB mid-pick only makes sense when reassigning an already
+    // existing chat — a brand-new draft chat has nothing to lose focus from.
+    if (pickerMode !== 'switch') {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'picker-kb-item picker-kb-item-solo' + (active ? ' active' : '');
+      row.textContent = kb.name;
+      row.addEventListener('click', () => selectPickerKb(kb));
+      list.appendChild(row);
+      return;
+    }
+
     const row = document.createElement('div');
-    row.className = 'picker-kb-item' + (kb.id === currentKb ? ' active' : '');
+    row.className = 'picker-kb-item picker-kb-item-row' + (active ? ' active' : '');
 
     const select = document.createElement('button');
     select.type = 'button';
     select.className = 'picker-kb-select';
     select.textContent = kb.name;
-    select.addEventListener('click', () => choosePickerKb(kb));
+    select.addEventListener('click', () => selectPickerKb(kb));
 
     const edit = document.createElement('button');
     edit.type = 'button';
@@ -184,13 +243,12 @@ function openPicker(mode) {
     row.append(select, edit);
     list.appendChild(row);
   });
-  openModal('modal-picker');
 }
 
-async function choosePickerKb(kb) {
-  closeModal('modal-picker');
-  if (pickerMode === 'create') await createConversationWithKb(kb);
-  else await bindKb(kb.id);
+function selectPickerKb(kb) {
+  pickerSelectedKb = kb;
+  el('btn-picker-confirm').disabled = false;
+  renderPickerList();
 }
 
 /* Conversations */
@@ -201,6 +259,7 @@ async function loadConversations() {
 }
 
 function renderConvList() {
+  closeRowConfirm();
   const list = el('conv-list');
   list.innerHTML = '';
   if (!conversations.length) {
@@ -244,7 +303,7 @@ function makeConvItem(conv) {
   del.type = 'button';
   setIcon(del, 'trash');
   del.title = 'Delete chat';
-  del.addEventListener('click', e => { e.stopPropagation(); confirmDeleteConv(item, conv); });
+  del.addEventListener('click', e => { e.stopPropagation(); confirmDeleteConv(del, conv); });
 
   actions.append(edit, del);
   item.append(main, actions);
@@ -252,14 +311,20 @@ function makeConvItem(conv) {
   return item;
 }
 
-// Swap the chat row into an inline "Delete chat?" confirm prompt.
-function confirmDeleteConv(item, conv) {
-  item.innerHTML = '';
-  item.classList.add('confirming');
+// Popover "Delete chat?" prompt, fixed-positioned and centered under the
+// delete button. Lives on <body> so it stays visible even once the cursor
+// leaves the row (the row's action icons fade out on mouse-leave).
+let rowConfirmBox = null;
 
-  const text = document.createElement('span');
+function confirmDeleteConv(anchor, conv) {
+  closeRowConfirm();
+
+  const box = document.createElement('div');
+  box.className = 'row-confirm-box';
+
+  const text = document.createElement('p');
   text.className = 'row-confirm-text';
-  text.textContent = 'Delete chat?';
+  text.textContent = 'Delete this chat?';
 
   const actions = document.createElement('div');
   actions.className = 'row-confirm-actions';
@@ -268,7 +333,7 @@ function confirmDeleteConv(item, conv) {
   no.className = 'row-confirm-no';
   no.type = 'button';
   no.textContent = 'Cancel';
-  no.addEventListener('click', e => { e.stopPropagation(); renderConvList(); });
+  no.addEventListener('click', e => { e.stopPropagation(); closeRowConfirm(); });
 
   const yes = document.createElement('button');
   yes.className = 'row-confirm-yes';
@@ -277,7 +342,25 @@ function confirmDeleteConv(item, conv) {
   yes.addEventListener('click', e => { e.stopPropagation(); deleteConversation(conv.id); });
 
   actions.append(no, yes);
-  item.append(text, actions);
+  box.append(text, actions);
+  box.addEventListener('click', e => e.stopPropagation());
+  document.body.appendChild(box);
+
+  const r = anchor.getBoundingClientRect();
+  const b = box.getBoundingClientRect();
+  const margin = 8;
+  const left = Math.max(margin, Math.min(r.left + r.width / 2 - b.width / 2, window.innerWidth - b.width - margin));
+  box.style.left = `${left}px`;
+  box.style.top = `${r.bottom + 6}px`;
+
+  rowConfirmBox = box;
+}
+
+function closeRowConfirm() {
+  if (rowConfirmBox) {
+    rowConfirmBox.remove();
+    rowConfirmBox = null;
+  }
 }
 
 function startRename(item, conv) {
@@ -402,10 +485,10 @@ function openChatView(conv) {
   (conv.messages || []).forEach(m => appendMessage(m.role, m.content, m.citations || []));
   thread.scrollTop = thread.scrollHeight;
 
-  pollDocs(conv.kb_id, applyGate);
+  pollDocs(conv.kb_id, docs => applyGate(docs, conv.kb_id));
 }
 
-function applyGate(docs) {
+function applyGate(docs, kbId) {
   const ready = docs.some(d => d.status === 'ready');
   const busy = docs.some(d => d.status === 'pending' || d.status === 'processing');
   const textarea = el('chat-input');
@@ -416,11 +499,27 @@ function applyGate(docs) {
 
   if (ready) {
     notice.classList.add('hidden');
-  } else {
-    notice.classList.remove('hidden');
-    notice.textContent = busy
-      ? 'Ingesting your documents… you can chat once at least one document is ready.'
-      : 'This knowledge base has no ready documents. Add documents in the Knowledge Bases tab or switch base.';
+    notice.innerHTML = '';
+    return;
+  }
+
+  notice.classList.remove('hidden');
+  notice.innerHTML = '';
+
+  const text = document.createElement('span');
+  text.textContent = busy
+    ? 'Ingesting your documents… you can chat once at least one document is ready.'
+    : 'This knowledge base has no ready documents.';
+  notice.appendChild(text);
+
+  const kb = kbsById[kbId];
+  if (kb) {
+    const link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'gate-notice-link';
+    link.textContent = 'Manage documents';
+    link.addEventListener('click', () => openBase(kb));
+    notice.appendChild(link);
   }
 }
 

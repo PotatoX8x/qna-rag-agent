@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QnA RAG Agent</title>
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-  <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/base.css" />
   <link rel="stylesheet" href="/assets/css/app.css" />
 </head>
@@ -41,7 +40,6 @@
     <main class="main">
       <header class="main-header">
         <button id="kb-chip" class="kb-chip hidden" type="button"></button>
-        <button class="theme-toggle" type="button" aria-label="Toggle theme"></button>
       </header>
 
       <div id="view-empty" class="view empty-state">
@@ -98,10 +96,17 @@
     <div class="modal">
       <h2 class="modal-title">Choose a knowledge base</h2>
       <p class="kb-picker-sub">This chat will answer from the base you select.</p>
-      <div id="picker-kb-list" class="picker-kb-list"></div>
+      <div class="picker-panel">
+        <div class="picker-search-wrap">
+          <span class="picker-search-icon" data-icon="search"></span>
+          <input id="picker-search" type="text" class="picker-search" placeholder="Search knowledge bases…" />
+        </div>
+        <div id="picker-kb-list" class="picker-kb-list"></div>
+      </div>
+      <button id="btn-picker-new" class="btn-secondary picker-create-btn" type="button">+ Create new knowledge base</button>
       <div class="modal-actions">
         <button id="btn-picker-cancel" class="btn-secondary">Cancel</button>
-        <button id="btn-picker-new" class="btn-primary">+ Create new knowledge base</button>
+        <button id="btn-picker-confirm" class="btn-primary" disabled>Create chat</button>
       </div>
     </div>
   </div>

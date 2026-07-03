@@ -7,12 +7,6 @@
   padding: 24px;
 }
 
-.auth-page > .theme-toggle {
-  position: absolute;
-  top: 16px;
-  right: 20px;
-}
-
 .auth-card {
   width: 100%;
   max-width: 400px;
@@ -98,16 +92,18 @@
 
 .btn-primary {
   padding: 11px;
-  background: var(--primary);
-  color: #fff;
+  background: var(--surface-hover);
+  color: var(--primary);
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-weight: 600;
-  transition: background 0.15s;
+  transition: border-color 0.15s, color 0.15s;
   margin-top: 4px;
 }
 
 .btn-primary:hover {
-  background: var(--primary-hover);
+  border-color: var(--primary);
+  color: var(--primary-hover);
 }
 
 .btn-primary:disabled {

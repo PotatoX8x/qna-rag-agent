@@ -1,45 +1,24 @@
 :root {
-  --bg: #f4f5f7;
-  --surface: #ffffff;
-  --border: #e2e8f0;
-  --primary: #4f6ef7;
-  --primary-hover: #3b5bdb;
-  --text: #1a202c;
-  --text-muted: #6b7280;
-  --error: #e53e3e;
-  --radius: 8px;
-  --rail-bg: #15171f;
-  --sidebar-bg: #1e2235;
-  --sidebar-text: #9aa5b8;
-  --sidebar-hover-bg: #252940;
-  --sidebar-active-bg: #2d3450;
-  --sidebar-active-text: #ffffff;
-  --user-bubble-bg: #4f6ef7;
-  --user-bubble-text: #ffffff;
-  --assistant-bubble-bg: #ffffff;
-  --scrollbar-thumb: rgba(0, 0, 0, 0.16);
-  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.28);
-  color-scheme: light;
-}
-
-:root[data-theme="dark"] {
-  --bg: #14161c;
-  --surface: #1e2128;
-  --border: #2d313c;
-  --primary: #6d86ff;
-  --primary-hover: #8499ff;
-  --text: #e4e6eb;
-  --text-muted: #9aa0aa;
+  --bg: #0f0f11;
+  --surface: #1b1b1e;
+  --surface-hover: #232327;
+  --border: #2c2c30;
+  --primary: #f5c518;
+  --primary-hover: #ffd633;
+  --primary-contrast: #17160c;
+  --text: #ececec;
+  --text-muted: #8f8f95;
   --error: #ff6b6b;
-  --rail-bg: #08090c;
-  --sidebar-bg: #0f1116;
-  --sidebar-text: #9aa0aa;
-  --sidebar-hover-bg: #1a1d24;
-  --sidebar-active-bg: #252934;
+  --radius: 8px;
+  --rail-bg: #0a0a0b;
+  --sidebar-bg: #141416;
+  --sidebar-text: #9a9aa0;
+  --sidebar-hover-bg: #1f1f22;
+  --sidebar-active-bg: #26262b;
   --sidebar-active-text: #ffffff;
-  --user-bubble-bg: #4f6ef7;
-  --user-bubble-text: #ffffff;
-  --assistant-bubble-bg: #252934;
+  --user-bubble-bg: #26262b;
+  --user-bubble-text: #ececec;
+  --assistant-bubble-bg: #1b1b1e;
   --scrollbar-thumb: rgba(255, 255, 255, 0.12);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.22);
   color-scheme: dark;
@@ -108,21 +87,4 @@ input, textarea {
 a {
   text-decoration: none;
   color: inherit;
-}
-
-.theme-toggle {
-  background: none;
-  border: none;
-  padding: 4px;
-  font-size: 20px;
-  line-height: 1;
-  color: var(--text-muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: color 0.15s, transform 0.15s;
-}
-
-.theme-toggle:hover {
-  color: var(--text);
-  transform: scale(1.15);
 }
