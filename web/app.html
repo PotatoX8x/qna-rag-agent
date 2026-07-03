@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QnA RAG Agent</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
   <script src="/assets/js/theme.js"></script>
   <link rel="stylesheet" href="/assets/css/base.css" />
   <link rel="stylesheet" href="/assets/css/app.css" />
@@ -50,14 +51,24 @@
       </div>
 
       <div id="view-chat" class="view chat-view hidden">
-        <div id="thread" class="thread"></div>
-        <div class="composer">
-          <div id="gate-notice" class="gate-notice hidden"></div>
-          <div class="input-wrap">
-            <textarea id="chat-input" rows="1" placeholder="Ask a question…"></textarea>
-            <button id="btn-send" class="btn-send" type="button" aria-label="Send"></button>
+        <div class="chat-col">
+          <div id="thread" class="thread"></div>
+          <div class="composer">
+            <div id="gate-notice" class="gate-notice hidden"></div>
+            <div class="input-wrap">
+              <textarea id="chat-input" rows="1" placeholder="Ask a question…"></textarea>
+              <button id="btn-send" class="btn-send" type="button" aria-label="Send"></button>
+            </div>
           </div>
         </div>
+        <aside id="source-panel" class="source-panel hidden">
+          <div id="source-resizer" class="source-resizer"></div>
+          <div class="source-panel-head">
+            <span id="source-panel-title" class="source-panel-title">Source</span>
+            <button id="source-close" class="icon-btn source-close" type="button" title="Close">×</button>
+          </div>
+          <div id="source-panel-body" class="source-panel-body"></div>
+        </aside>
       </div>
 
       <div id="view-kb" class="view kb-view hidden">

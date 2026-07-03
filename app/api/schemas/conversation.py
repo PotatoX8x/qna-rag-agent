@@ -33,6 +33,17 @@ class ConversationRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CitationRead(BaseModel):
+    """A single grounded citation returned alongside an answer."""
+
+    index: Optional[int] = None
+    chunk_id: Optional[uuid.UUID] = None
+    score: float
+    snippet: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
 class MessageRead(BaseModel):
     """Serialised view of a ``Message`` ORM row."""
 
@@ -40,6 +51,7 @@ class MessageRead(BaseModel):
     role: str
     content: str
     created_at: datetime
+    citations: list[CitationRead] = []
 
     model_config = {"from_attributes": True}
 
@@ -54,15 +66,6 @@ class ChatRequest(BaseModel):
     """Request body for the chat endpoint."""
 
     message: str
-
-
-class CitationRead(BaseModel):
-    """A single grounded citation returned alongside an answer."""
-
-    index: Optional[int] = None
-    chunk_id: Optional[uuid.UUID] = None
-    score: float
-    snippet: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 import uuid
 
-from sqlalchemy import Enum, Float, ForeignKey, Text
+from sqlalchemy import Enum, Float, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.orm.base import Base, TimestampMixin, UUIDMixin
@@ -42,6 +42,8 @@ class MessageCitation(UUIDMixin, Base):
         ForeignKey("chunks.id", ondelete="CASCADE"), nullable=False
     )
     score: Mapped[float] = mapped_column(Float, nullable=False)
+    index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    snippet: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     message: Mapped[Message] = relationship("Message", back_populates="citations")
     chunk: Mapped[Chunk] = relationship("Chunk", back_populates="citations")  # type: ignore[name-defined]

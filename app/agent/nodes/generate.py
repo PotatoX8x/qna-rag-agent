@@ -61,7 +61,7 @@ def make_generate(services: AppServices):
                     "index": i,
                     "chunk_id": docs[i][0].metadata.get("id"),
                     "score": docs[i][1],
-                    "snippet": docs[i][0].page_content[:500],
+                    "snippet": docs[i][0].page_content[:4000],
                 }
                 for i in result.cited_indices
                 if i < len(docs)

@@ -43,9 +43,35 @@ async function init() {
   wireSidebar();
   wirePicker();
   wireChat();
+  wireSourcePanel();
 
   await refreshKbs();
   await loadConversations();
+  restoreLastView();
+}
+
+function saveLastView(type, id) {
+  localStorage.setItem('lastView', JSON.stringify({ type, id }));
+}
+
+function clearLastView() {
+  localStorage.removeItem('lastView');
+}
+
+// Re-open the chat or knowledge base that was active before a page refresh.
+function restoreLastView() {
+  let v = null;
+  try {
+    v = JSON.parse(localStorage.getItem('lastView') || 'null');
+  } catch {
+    v = null;
+  }
+  if (!v) return;
+  if (v.type === 'chat' && conversations.some(c => c.id === v.id)) {
+    openConversation(v.id);
+  } else if (v.type === 'base' && kbsById[v.id]) {
+    openBase(kbsById[v.id]);
+  }
 }
 
 function wireSidebar() {
@@ -88,6 +114,8 @@ function openBase(kb) {
   selectTab('bases');
   el('kb-chip').classList.add('hidden');
   stopPolling();
+  closeSourcePanel();
+  saveLastView('base', kb.id);
   renderBasesSidebar(kbs, { selectedId: selectedBaseId, onSelect: openBase });
   openKbView(kb, { onChanged: onBaseChanged });
 }
@@ -101,6 +129,7 @@ async function onBaseChanged(info = {}) {
     conversations.forEach(c => { if (c.kb_id === deletedId) c.kb_id = null; });
     Object.values(convCache).forEach(d => { if (d.kb_id === deletedId) d.kb_id = null; });
     if (activeConv && activeConv.kb_id === deletedId) activeConv.kb_id = null;
+    clearLastView();
     showView('view-empty');
   }
   await refreshKbs();
@@ -288,6 +317,8 @@ function startRename(item, conv) {
 function newConversation() {
   activeConv = null;
   selectTab('chats');
+  closeSourcePanel();
+  clearLastView();
   renderConvList();
   el('kb-chip').classList.add('hidden');
   showView('view-empty');
@@ -306,6 +337,7 @@ async function createConversationWithKb(kb) {
 
 async function openConversation(id) {
   stopPolling();
+  closeSourcePanel();
   let detail = convCache[id];
   if (!detail) {
     detail = await apiFetch(`/api/conversations/${id}`);
@@ -313,6 +345,7 @@ async function openConversation(id) {
   }
   activeConv = detail;
   selectedBaseId = null;
+  saveLastView('chat', id);
   renderConvList();
 
   if (detail.kb_id) {
@@ -331,6 +364,7 @@ async function deleteConversation(id) {
     activeConv = null;
     stopPolling();
     el('kb-chip').classList.add('hidden');
+    clearLastView();
     showView('view-empty');
   }
   renderConvList();
@@ -365,7 +399,7 @@ function openChatView(conv) {
 
   const thread = el('thread');
   thread.innerHTML = '';
-  (conv.messages || []).forEach(m => appendMessage(m.role, m.content, []));
+  (conv.messages || []).forEach(m => appendMessage(m.role, m.content, m.citations || []));
   thread.scrollTop = thread.scrollHeight;
 
   pollDocs(conv.kb_id, applyGate);
@@ -451,10 +485,69 @@ function makeCite(n, citation) {
     const quote = formatQuote(citation.snippet);
     sup.addEventListener('mouseenter', () => showCiteTip(sup, quote));
     sup.addEventListener('mouseleave', hideCiteTip);
+    sup.addEventListener('click', () => { hideCiteTip(); openSourcePanel(n, citation); });
   } else {
     sup.classList.add('cite-plain');
   }
   return sup;
+}
+
+function openSourcePanel(n, citation) {
+  el('source-panel-title').textContent = `Source [${n + 1}]`;
+  const body = el('source-panel-body');
+  body.innerHTML = '';
+
+  const text = document.createElement('div');
+  text.className = 'source-text';
+  text.textContent = citation.snippet ? citation.snippet.trim() : 'No source text available.';
+  body.appendChild(text);
+
+  el('source-panel').classList.remove('hidden');
+  el('view-chat').classList.add('panel-open');
+}
+
+function closeSourcePanel() {
+  el('source-panel').classList.add('hidden');
+  el('view-chat').classList.remove('panel-open');
+}
+
+function wireSourcePanel() {
+  el('source-close').addEventListener('click', closeSourcePanel);
+
+  const resizer = el('source-resizer');
+  const panel = el('source-panel');
+  let startX = 0;
+  let startW = 0;
+  let pendingW = 0;
+  let frame = 0;
+  let overlay = null;
+
+  const apply = () => {
+    frame = 0;
+    panel.style.width = `${pendingW}px`;
+  };
+  const onMove = e => {
+    pendingW = Math.round(Math.max(240, Math.min(startW + (startX - e.clientX), window.innerWidth * 0.6)));
+    if (!frame) frame = requestAnimationFrame(apply);
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.classList.remove('resizing');
+    if (frame) { cancelAnimationFrame(frame); frame = 0; }
+    if (overlay) { overlay.remove(); overlay = null; }
+  };
+  resizer.addEventListener('mousedown', e => {
+    e.preventDefault();
+    startX = e.clientX;
+    startW = panel.getBoundingClientRect().width;
+    overlay = document.createElement('div');
+    overlay.className = 'resize-overlay';
+    document.body.appendChild(overlay);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.classList.add('resizing');
+  });
 }
 
 // Collapse whitespace, cap length, and frame as an excerpt with ellipses.
@@ -533,7 +626,7 @@ async function sendMessage() {
     appendMessage('assistant', res.answer, res.citations || []);
     conv.messages = conv.messages || [];
     conv.messages.push({ role: 'user', content: text });
-    conv.messages.push({ role: 'assistant', content: res.answer });
+    conv.messages.push({ role: 'assistant', content: res.answer, citations: res.citations || [] });
     if (firstTurn && !conv.title) generateTitle(conv.id);
   } catch (err) {
     thinking.remove();

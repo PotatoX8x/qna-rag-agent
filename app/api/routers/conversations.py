@@ -122,7 +122,7 @@ async def get_conversation(
     result = await db.execute(
         select(Conversation)
         .where(Conversation.id == conv_id, Conversation.user_id == user.id)
-        .options(selectinload(Conversation.messages))
+        .options(selectinload(Conversation.messages).selectinload(Message.citations))
     )
     conv = result.scalar_one_or_none()
     if conv is None:
@@ -316,6 +316,8 @@ async def chat(
                         message_id=asst_msg.id,
                         chunk_id=chunk_uuid,
                         score=float(cit["score"]),
+                        index=cit.get("index"),
+                        snippet=cit.get("snippet"),
                     )
                 )
             except (ValueError, TypeError):
