@@ -60,6 +60,18 @@ defaults:
       rerank: false
       lexical_provider: bm25
 
+  file_store:
+    file_store_seaweedfs: &file_store_seaweedfs
+      provider: seaweedfs
+      endpoint_url: ${SEAWEEDFS_ENDPOINT:-http://seaweedfs:8333}
+      access_key: ${SEAWEEDFS_ACCESS_KEY:-seaweedfs}
+      secret_key: ${SEAWEEDFS_SECRET_KEY:-seaweedfs123}
+      bucket: ${SEAWEEDFS_BUCKET:-documents}
+
+    file_store_local: &file_store_local
+      provider: local_disk
+      data_dir: ${PROJECT_ROOT}/data
+
 # App settings
 api:
   allowed_origins: ${ALLOWED_ORIGINS:-http://localhost:8000}
@@ -75,6 +87,9 @@ vectorstore:
 
 retrieval:
   <<: *retriever_ensemble
+
+file_store:
+  <<: *file_store_seaweedfs
 
 auth:
   jwt_secret: ${JWT_SECRET}

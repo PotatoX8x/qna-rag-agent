@@ -234,6 +234,7 @@ export function openKbView(kb, { onChanged }) {
       uploadBtn.disabled = false;
     }
     pollDocs(kb.id, renderDocs);
+    onChanged();
   };
 
   el('btn-kb-refresh').onclick = () => pollDocs(kb.id, renderDocs);
@@ -270,6 +271,7 @@ export function openKbView(kb, { onChanged }) {
       del.addEventListener('click', async () => {
         await deleteDoc(kb.id, doc.id);
         pollDocs(kb.id, renderDocs);
+        onChanged();
       });
       right.appendChild(del);
 
@@ -281,7 +283,6 @@ export function openKbView(kb, { onChanged }) {
   pollDocs(kb.id, renderDocs);
 }
 
-// Inline "are you sure" popover anchored under the delete button.
 function showKbDeleteConfirm(kb, onChanged) {
   const wrap = el('kb-delete-wrap');
   if (wrap.querySelector('.confirm-box')) return;
@@ -317,7 +318,6 @@ function showKbDeleteConfirm(kb, onChanged) {
   wrap.appendChild(box);
 }
 
-// Swap the KB title heading for an inline input and commit the rename.
 function startKbRename(kb, onChanged) {
   const nameEl = el('kb-view-name');
   const input = document.createElement('input');

@@ -8,6 +8,8 @@ from app.core.config import load_config
 from app.core.logging import setup_logging
 from app.core.observability import setup_observability
 from app.db.engine import create_engine_and_session
+from app.file_store import FileStoreRegistry
+from app.file_store.base import BaseFileStore
 from app.models.embedding_client import EmbeddingRegistry
 from app.models.embedding_client.base import BaseEmbeddingClient
 from app.models.llm_client import LLMRegistry
@@ -29,6 +31,7 @@ class AppServices:
     session_factory: async_sessionmaker[AsyncSession]
     vectorstore: BaseVectorStore
     retriever: BaseRetriever
+    file_store: BaseFileStore
 
 
 class ServiceContainer:
@@ -72,6 +75,7 @@ class ServiceContainer:
         engine, session_factory = create_engine_and_session(config["database"]["url"])
         vectorstore = VectorStoreRegistry.create(config["vectorstore"], "default", embeddings)
         retriever = RetrieverRegistry.create(vectorstore, config["retrieval"])
+        file_store = FileStoreRegistry.create(config["file_store"])
 
         return AppServices(
             config=config,
@@ -81,6 +85,7 @@ class ServiceContainer:
             session_factory=session_factory,
             vectorstore=vectorstore,
             retriever=retriever,
+            file_store=file_store,
         )
 
     @classmethod

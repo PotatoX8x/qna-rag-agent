@@ -28,6 +28,21 @@ services:
       retries: 10
     restart: unless-stopped
 
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    command: server -dir=/data -s3 -s3.port=8333
+    ports:
+      - "8333:8333"
+      - "9333:9333"
+    volumes:
+      - seaweedfs_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8333/"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.12.0
     command: >
@@ -76,6 +91,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
     restart: unless-stopped
 
   worker:
@@ -96,6 +113,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
@@ -103,3 +122,4 @@ volumes:
   mlflow_data:
   app_data:
   hf_cache:
+  seaweedfs_data:

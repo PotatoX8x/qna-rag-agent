@@ -1,6 +1,5 @@
-import shutil
+import asyncio
 import uuid
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
@@ -101,10 +100,8 @@ async def upload_document(
     await db.refresh(doc)
 
     services = ServiceContainer.get_instance()
-    upload_dir = Path(services.config["database"]["data_dir"]) / "uploads" / str(doc.id)
-    upload_dir.mkdir(parents=True, exist_ok=True)
     content = await file.read()
-    (upload_dir / doc.filename).write_bytes(content)
+    await asyncio.to_thread(services.file_store.save, str(doc.id), doc.filename, content)
 
     from app.worker.tasks import ingest_document
     ingest_document.delay(str(doc.id), str(kb_id))
@@ -168,8 +165,7 @@ async def delete_document(kb_id: uuid.UUID, doc_id: uuid.UUID, user: _CurrentUse
 
     # Clear the documents even when they are deleted while still pending/processing.
     services = ServiceContainer.get_instance()
-    upload_dir = Path(services.config["database"]["data_dir"]) / "uploads" / str(doc_id)
-    shutil.rmtree(upload_dir, ignore_errors=True)
+    await asyncio.to_thread(services.file_store.delete, str(doc_id))
 
 
 async def _assert_kb_owned(kb_id: uuid.UUID, user: User, db: AsyncSession) -> None:

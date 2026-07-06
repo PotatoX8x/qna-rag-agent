@@ -1,6 +1,5 @@
-import shutil
+import asyncio
 import uuid
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -164,9 +163,9 @@ async def delete_knowledge_base(kb_id: uuid.UUID, user: _CurrentUser, db: _DB) -
     await db.commit()
 
     # Remove documents still pending/processing when the KB is deleted.
-    data_dir = Path(ServiceContainer.get_instance().config["database"]["data_dir"])
+    file_store = ServiceContainer.get_instance().file_store
     for doc_id in doc_ids:
-        shutil.rmtree(data_dir / "uploads" / str(doc_id), ignore_errors=True)
+        await asyncio.to_thread(file_store.delete, str(doc_id))
 
 
 async def _get_owned(kb_id: uuid.UUID, user: User, db: AsyncSession) -> KnowledgeBase:

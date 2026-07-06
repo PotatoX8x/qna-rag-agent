@@ -1,6 +1,6 @@
 import logging
 import re
-import shutil
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -26,7 +26,7 @@ def ingest_document(self, document_id: str, kb_id: str) -> dict:
     services = ServiceContainer.get_instance()
     db_url = services.config["database"]["url"]
     conninfo = _sync_url(db_url)
-    upload_dir = Path(services.config["database"]["data_dir"]) / "uploads" / document_id
+    file_store = services.file_store
 
     try:
         with psycopg.connect(conninfo) as conn:
@@ -46,7 +46,14 @@ def ingest_document(self, document_id: str, kb_id: str) -> dict:
             raise ValueError(f"Document {document_id} not found")
 
         (filename,) = row
-        text = load_file(upload_dir / filename)
+        content = file_store.load(document_id, filename)
+
+        # Unstructured needs a real path on disk, so stage the bytes in a tempdir
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / filename
+            tmp_path.write_bytes(content)
+            text = load_file(tmp_path)
+
         raw_chunks = chunk_text(text, services.embeddings)
 
         docs = [
@@ -77,7 +84,7 @@ def ingest_document(self, document_id: str, kb_id: str) -> dict:
                 )
             conn.commit()
 
-        shutil.rmtree(upload_dir, ignore_errors=True)
+        file_store.delete(document_id)
         return {"document_id": document_id, "chunks": len(docs)}
 
     except Exception as exc:
@@ -96,5 +103,5 @@ def ingest_document(self, document_id: str, kb_id: str) -> dict:
 
         # Only remove once retries are exhausted
         if self.request.retries >= self.max_retries:
-            shutil.rmtree(upload_dir, ignore_errors=True)
+            file_store.delete(document_id)
         raise self.retry(exc=exc, countdown=30)
