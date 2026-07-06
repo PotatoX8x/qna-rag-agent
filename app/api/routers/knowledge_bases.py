@@ -1,4 +1,6 @@
+import shutil
 import uuid
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies.auth import current_user
 from app.api.dependencies.db import get_db
 from app.api.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseRead
+from app.container import ServiceContainer
 from app.db.orm.document import Document
 from app.db.orm.knowledge_base import KnowledgeBase
 from app.db.orm.user import User
@@ -154,8 +157,16 @@ async def delete_knowledge_base(kb_id: uuid.UUID, user: _CurrentUser, db: _DB) -
         404 when the knowledge base does not exist or is not owned by the user.
     """
     kb = await _get_owned(kb_id, user, db)
+
+    doc_ids = (await db.execute(select(Document.id).where(Document.kb_id == kb_id))).scalars().all()
+
     await db.delete(kb)
     await db.commit()
+
+    # Remove documents still pending/processing when the KB is deleted.
+    data_dir = Path(ServiceContainer.get_instance().config["database"]["data_dir"])
+    for doc_id in doc_ids:
+        shutil.rmtree(data_dir / "uploads" / str(doc_id), ignore_errors=True)
 
 
 async def _get_owned(kb_id: uuid.UUID, user: User, db: AsyncSession) -> KnowledgeBase:

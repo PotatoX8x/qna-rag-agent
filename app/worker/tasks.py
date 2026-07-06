@@ -1,5 +1,6 @@
 import logging
 import re
+import shutil
 import uuid
 from pathlib import Path
 
@@ -76,6 +77,7 @@ def ingest_document(self, document_id: str, kb_id: str) -> dict:
                 )
             conn.commit()
 
+        shutil.rmtree(upload_dir, ignore_errors=True)
         return {"document_id": document_id, "chunks": len(docs)}
 
     except Exception as exc:
@@ -91,4 +93,8 @@ def ingest_document(self, document_id: str, kb_id: str) -> dict:
                 conn.commit()
         except Exception:
             pass
+
+        # Only remove once retries are exhausted
+        if self.request.retries >= self.max_retries:
+            shutil.rmtree(upload_dir, ignore_errors=True)
         raise self.retry(exc=exc, countdown=30)

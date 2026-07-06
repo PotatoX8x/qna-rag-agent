@@ -1,3 +1,4 @@
+import shutil
 import uuid
 from pathlib import Path
 from typing import Annotated
@@ -164,6 +165,11 @@ async def delete_document(kb_id: uuid.UUID, doc_id: uuid.UUID, user: _CurrentUse
     doc = await _get_doc(doc_id, kb_id, db)
     await db.delete(doc)
     await db.commit()
+
+    # Clear the documents even when they are deleted while still pending/processing.
+    services = ServiceContainer.get_instance()
+    upload_dir = Path(services.config["database"]["data_dir"]) / "uploads" / str(doc_id)
+    shutil.rmtree(upload_dir, ignore_errors=True)
 
 
 async def _assert_kb_owned(kb_id: uuid.UUID, user: User, db: AsyncSession) -> None:
