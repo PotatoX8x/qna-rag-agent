@@ -449,6 +449,7 @@ async def _generate_title(llm, question: str) -> str | None:
             user_prompt=tp.HUMAN_PROMPT.format(question=question[:1000]),
             temperature=0.3,
             max_tokens=24,
+            fast=True,
         )
     except Exception:
         logger.exception("title generation failed")

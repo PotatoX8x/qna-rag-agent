@@ -52,7 +52,7 @@ class LangChainLLMClient(BaseLLMClient):
         self._model_fast = model_fast or model
 
     @backoff.on_exception(backoff.expo, Exception, max_tries=3)
-    async def complete(self, system_prompt, user_prompt, temperature=0.4, max_tokens=None) -> str:
+    async def complete(self, system_prompt, user_prompt, temperature=0.4, max_tokens=None, fast=False) -> str:
         """Return a plain-text completion with exponential-backoff retries.
 
         Parameters
@@ -65,13 +65,16 @@ class LangChainLLMClient(BaseLLMClient):
             Sampling temperature. Default is 0.4.
         max_tokens : int or None, optional
             Hard cap on output tokens.
+        fast : bool, optional
+            Use the lighter/cheaper model instead of the main analysis model.
 
         Returns
         -------
         str
             Full response text.
         """
-        response = await self._model.ainvoke(_build_messages(system_prompt, user_prompt))
+        model = self._model_fast if fast else self._model
+        response = await model.ainvoke(_build_messages(system_prompt, user_prompt))
         return response.content
 
     @backoff.on_exception(backoff.expo, Exception, max_tries=3)

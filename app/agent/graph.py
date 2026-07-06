@@ -26,9 +26,9 @@ def _route_after_grade(state: AgentState) -> str:
     Returns
     -------
     str
-        ``"web_search"`` or ``"generate"``.
+        ``"needs_web_search"`` or ``"sufficient"``.
     """
-    return "web_search" if state.get("needs_web_search") else "generate"
+    return "needs_web_search" if state.get("needs_web_search") else "sufficient"
 
 
 def _route_after_hallucination(state: AgentState) -> str:
@@ -42,9 +42,9 @@ def _route_after_hallucination(state: AgentState) -> str:
     Returns
     -------
     str
-        ``"generate"`` to retry or ``END`` to finish.
+        ``"hallucinated"`` to retry or ``"grounded"`` to finish.
     """
-    return "generate" if state.get("hallucination_detected") else END
+    return "hallucinated" if state.get("hallucination_detected") else "grounded"
 
 
 def build_graph(services: AppServices) -> Any:
@@ -87,7 +87,7 @@ def build_graph(services: AppServices) -> Any:
         workflow.add_conditional_edges(
             "grade",
             _route_after_grade,
-            {"web_search": "web_search", "generate": "generate"},
+            {"needs_web_search": "web_search", "sufficient": "generate"},
         )
 
         workflow.add_edge("web_search", "generate")
@@ -96,7 +96,7 @@ def build_graph(services: AppServices) -> Any:
         workflow.add_conditional_edges(
             "check_hallucination",
             _route_after_hallucination,
-            {"generate": "generate", END: END},
+            {"hallucinated": "generate", "grounded": END},
         )
 
         _graph = workflow.compile()

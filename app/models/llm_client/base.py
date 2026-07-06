@@ -13,6 +13,7 @@ class BaseLLMClient(ABC):
         user_prompt: str,
         temperature: float = 0.4,
         max_tokens: int | None = None,
+        fast: bool = False,
     ) -> str:
         """Return a plain-text completion.
 
@@ -26,6 +27,8 @@ class BaseLLMClient(ABC):
             Sampling temperature. Default is 0.4.
         max_tokens : int or None, optional
             Hard cap on output tokens. ``None`` uses the model default.
+        fast : bool, optional
+            Use the lighter/cheaper model instead of the main analysis model.
 
         Returns
         -------
