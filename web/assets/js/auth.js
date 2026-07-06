@@ -1,8 +1,20 @@
 import apiFetch from './api.js';
+import { setIcon } from './icons.js';
 
 if (localStorage.getItem('token')) {
   location.href = '/app';
 }
+
+document.querySelectorAll('.password-toggle').forEach(btn => {
+  setIcon(btn, 'eye');
+  btn.addEventListener('click', () => {
+    const input = document.getElementById(btn.dataset.target);
+    const showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    setIcon(btn, showing ? 'eye' : 'eye-off');
+    btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+  });
+});
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

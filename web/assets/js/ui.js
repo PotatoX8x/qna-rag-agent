@@ -16,10 +16,21 @@ export function closeModal(id) {
   el(id).classList.add('hidden');
 }
 
-// Coloured status chip for document ingestion state.
+// Tinted status chip for document ingestion state. In-progress states get a
+// spinning ring; terminal states get a static dot — both tinted via
+// currentColor so they follow each pill's own status color automatically.
 export function statusPill(status) {
   const span = document.createElement('span');
   span.className = `pill pill-${status}`;
-  span.textContent = status;
+
+  const busy = status === 'pending' || status === 'processing';
+  const indicator = document.createElement('span');
+  indicator.className = busy ? 'pill-spinner' : 'pill-dot';
+  span.appendChild(indicator);
+
+  const label = document.createElement('span');
+  label.textContent = status;
+  span.appendChild(label);
+
   return span;
 }

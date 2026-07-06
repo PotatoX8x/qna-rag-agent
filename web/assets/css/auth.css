@@ -84,10 +84,47 @@
   border-color: var(--error);
 }
 
+.password-field {
+  position: relative;
+  display: flex;
+}
+
+.password-field input {
+  width: 100%;
+  padding-right: 40px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  color: var(--text-muted);
+  transition: color 0.15s;
+}
+
+.password-toggle:hover {
+  color: var(--text);
+}
+
+.password-toggle svg {
+  width: 17px;
+  height: 17px;
+  display: block;
+}
+
 .field-error {
   color: var(--error);
   font-size: 12px;
-  min-height: 15px;
+}
+
+.field-error:empty {
+  display: none;
 }
 
 .btn-primary {
@@ -115,6 +152,10 @@
   color: var(--error);
   font-size: 13px;
   text-align: center;
-  min-height: 20px;
   margin-top: 12px;
+}
+
+.auth-error:empty {
+  display: none;
+  margin-top: 0;
 }

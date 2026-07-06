@@ -62,7 +62,9 @@ export function stopPolling() {
   }
 }
 
-// Re-fetch a KB's documents every 2s until none are still ingesting.
+const POLL_INTERVAL_MS = 5000;
+
+// Re-fetch a KB's documents every POLL_INTERVAL_MS until none are still ingesting.
 export function pollDocs(kbId, onUpdate) {
   stopPolling();
   const tick = async () => {
@@ -73,7 +75,7 @@ export function pollDocs(kbId, onUpdate) {
       return;
     }
     onUpdate(docs);
-    pollTimer = docs.some(d => BUSY.has(d.status)) ? setTimeout(tick, 2000) : null;
+    pollTimer = docs.some(d => BUSY.has(d.status)) ? setTimeout(tick, POLL_INTERVAL_MS) : null;
   };
   tick();
 }

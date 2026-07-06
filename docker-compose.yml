@@ -70,6 +70,7 @@ services:
     volumes:
       - .:/app
       - app_data:/app/data
+      - hf_cache:/root/.cache/huggingface
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -89,6 +90,7 @@ services:
     volumes:
       - .:/app
       - app_data:/app/data
+      - hf_cache:/root/.cache/huggingface
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -100,3 +102,4 @@ volumes:
   postgres_data:
   mlflow_data:
   app_data:
+  hf_cache:
