@@ -3,7 +3,7 @@
 A self-hosted question-answering agent over uploaded documents. Create a knowledge base, drop in PDFs or Office docs, and chat with a **corrective RAG (CRAG)** agent that grades its own retrieval, falls back to a live web search when the knowledge base comes up short, and checks its own answer for hallucinations before replying.
 
 <p align="center">
-  <img src="images/agent_graph.png" alt="Agent graph" width="320">
+  <img src="images/agent_graph.png" alt="Agent graph" width="200">
 </p>
 
 Built with **FastAPI + LangGraph + LangChain + OpenAI**, **Postgres + pgvector** for storage and retrieval, **Celery + Redis** for background ingestion, **SeaweedFS** for raw document storage, and **MLflow** observability.
