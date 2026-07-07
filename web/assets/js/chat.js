@@ -1,6 +1,7 @@
 import apiFetch from './api.js';
 import { el, showView, openModal, closeModal } from './ui.js';
 import { setIcon } from './icons.js';
+import { renderMarkdown } from './markdown.js';
 import {
   fetchKbs,
   openCreateKbModal,
@@ -556,24 +557,52 @@ function appendMessage(role, content, citations = []) {
   return wrap;
 }
 
-// Turn inline [n] markers in an answer into citations numbered from 1 that
-// reveal the source passage on hover. Indices map to the model's 0-based ids.
+// Renders the answer as Markdown, then walks the resulting DOM and turns
+// inline [n] markers into citations numbered from 1 that reveal the source
+// passage on hover. Indices map to the model's 0-based ids.
 function renderAnswer(content, citations) {
+  const frag = renderMarkdown(content);
+  injectCitations(frag, citations);
+  return frag;
+}
+
+// Replaces [n] patterns found in text nodes (skipping code/pre content) with
+// interactive citation elements, without disturbing the surrounding markdown
+// structure (paragraphs, lists, etc).
+function injectCitations(root, citations) {
   const byIndex = {};
   citations.forEach(c => { if (c.index != null) byIndex[c.index] = c; });
 
-  const frag = document.createDocumentFragment();
-  const re = /\[(\d+)\]/g;
-  let last = 0;
-  let m;
-  while ((m = re.exec(content)) !== null) {
-    if (m.index > last) frag.appendChild(document.createTextNode(content.slice(last, m.index)));
-    const n = parseInt(m[1], 10);
-    frag.appendChild(makeCite(n, byIndex[n]));
-    last = re.lastIndex;
-  }
-  if (last < content.length) frag.appendChild(document.createTextNode(content.slice(last)));
-  return frag;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      let p = node.parentNode;
+      while (p && p !== root) {
+        if (p.nodeName === 'CODE' || p.nodeName === 'PRE') return NodeFilter.FILTER_REJECT;
+        p = p.parentNode;
+      }
+      return /\[\d+\]/.test(node.textContent) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+    },
+  });
+
+  const targets = [];
+  let node;
+  while ((node = walker.nextNode())) targets.push(node);
+
+  targets.forEach(textNode => {
+    const text = textNode.textContent;
+    const re = /\[(\d+)\]/g;
+    const replacement = document.createDocumentFragment();
+    let last = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) replacement.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const n = parseInt(m[1], 10);
+      replacement.appendChild(makeCite(n, byIndex[n]));
+      last = re.lastIndex;
+    }
+    if (last < text.length) replacement.appendChild(document.createTextNode(text.slice(last)));
+    textNode.parentNode.replaceChild(replacement, textNode);
+  });
 }
 
 function makeCite(n, citation) {
@@ -646,6 +675,23 @@ function wireSourcePanel() {
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
     document.body.classList.add('resizing');
+  });
+
+  // Scope Ctrl/Cmd+A to the panel's own text instead of the whole page,
+  // when the last click landed inside it.
+  let panelActive = false;
+  document.addEventListener('mousedown', e => {
+    panelActive = !panel.classList.contains('hidden') && panel.contains(e.target);
+  });
+  document.addEventListener('keydown', e => {
+    const isSelectAll = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a';
+    if (!isSelectAll || !panelActive || panel.classList.contains('hidden')) return;
+    e.preventDefault();
+    const range = document.createRange();
+    range.selectNodeContents(el('source-panel-body'));
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
   });
 }
 
